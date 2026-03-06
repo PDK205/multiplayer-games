@@ -49,14 +49,16 @@ public class GameHubSignalR : Hub
     }
 
     // ── Play vs Bot ───────────────────────────────────────────
-    public async Task RoomPlayVsBot(string gameType)
+    public async Task RoomPlayVsBot(string gameType, string difficulty = "medium")
     {
         if (!RoomManager.GameConfigs.TryGetValue(gameType, out var cfg)) return;
         var room = _rm.CreateRoom(gameType, cfg.MaxPlayers, false);
         room.IsVsBot = true;
+        room.BotDifficulty = difficulty;
         var (err,_) = _rm.JoinRoom(Context.ConnectionId, room.Code);
         if (err!=null){await Clients.Caller.SendAsync("room:error",new{message=err});return;}
-        _rm.AddBotToRoom(room);
+        if(gameType=="poker") { for(int i=0;i<4;i++) room.Players.Add(BotAI.MakeBotPlayer(i)); }
+        else _rm.AddBotToRoom(room);
         await Groups.AddToGroupAsync(Context.ConnectionId, room.Code);
         await Clients.Caller.SendAsync("room:created", new{roomCode=room.Code});
         await Clients.Group(room.Code).SendAsync("room:updated", _rm.GetRoomInfo(room));
@@ -138,7 +140,7 @@ public class GameHubSignalR : Hub
     private static async Task TttBotMoveAsync(Room room, IHubContext<GameHubSignalR> hub, RoomManager rm, ILogger log)
     {
         if (room.GameState is not TttGameState gs) return;
-        int cell = BotAI.TttBotMove(gs);
+        int cell = BotAI.TttBotMove(gs, room.BotDifficulty);
         var (error,evt,newGs,winner) = TicTacToe.MakeMove(gs, BotAI.BOT_ID, cell);
         if (error!=null) return;
         room.GameState=newGs;
@@ -194,7 +196,7 @@ public class GameHubSignalR : Hub
     private static async Task ChessBotMoveAsync(Room room, IHubContext<GameHubSignalR> hub, RoomManager rm, ILogger log)
     {
         if (room.GameState is not ChessGameState gs || gs.GameOver) return;
-        var (from, to, promo) = BotAI.ChessBotMove(gs);
+        var (from, to, promo) = BotAI.ChessBotMove(gs, room.BotDifficulty);
         if (from<0||to<0) return;
         var (error,newGs,notation,isCheckmate,isCheck) = Chess.TryMove(gs, BotAI.BOT_ID, from, to, promo);
         if (error!=null) return;
@@ -243,6 +245,92 @@ public class GameHubSignalR : Hub
             var hub=_hubContext;var rm=_rm;var log=_logger;
             _ = Task.Run(async()=>{await Task.Delay(2000);if(room.State=="PLAYING")await SendNextQuestionBg(room,hub,rm,log);});
         }
+    }
+
+
+    // ── Poker ────────────────────────────────────────────────────
+    public async Task PokerAction(string action, int amount)
+    {
+        if(!_rm.CheckRateLimit(Context.ConnectionId))return;
+        var room=_rm.GetRoomByPlayer(Context.ConnectionId);
+        if(room?.GameType!="poker"||room.State!="PLAYING"||room.GameState is not PokerGameState gs||gs.GameOver)return;
+        await HandlePokerAction(room,gs,Context.ConnectionId,action,amount,_hubContext,_rm,_logger);
+    }
+
+    private static async Task HandlePokerAction(Room room,PokerGameState gs,string playerId,string action,int amount,IHubContext<GameHubSignalR> hub,RoomManager rm,ILogger log)
+    {
+        var(err,phaseOver)=Poker.Act(gs,playerId,action,amount);
+        if(err!=null){await hub.Clients.Client(playerId).SendAsync("game:error",new{message=err});return;}
+        room.GameState=gs;
+        if(phaseOver&&gs.Winner!=null){
+            // Won by everyone else folding
+            await BroadcastPokerState(room,gs,hub,null);
+            await Task.Delay(2000);
+            if(gs.Players.Count<2||gs.Players.Count(p=>p.Chips>0)<2){gs.GameOver=true;await EndGameBg(room,gs.Winner,hub,rm,log);return;}
+            gs.Winner=null;gs.DealerIndex=(gs.DealerIndex+1)%gs.Players.Count;gs.Round++;
+            Poker.DealNewRound(gs);room.GameState=gs;
+            await BroadcastPokerState(room,gs,hub,null);
+            MaybeScheduleBot(room,gs,hub,rm,log);
+        } else if(phaseOver){
+            await BroadcastPokerState(room,gs,hub,null);
+            await Task.Delay(600);
+            bool handDone=Poker.DealNextStreet(gs);
+            room.GameState=gs;
+            if(handDone){
+                string wid=Poker.DoShowdown(gs);
+                await BroadcastPokerState(room,gs,hub,null);
+                await Task.Delay(3000);
+                if(gs.Players.Count<2||gs.Players.Count(p=>p.Chips>0)<2){gs.GameOver=true;await EndGameBg(room,wid,hub,rm,log);return;}
+                gs.Winner=null;gs.DealerIndex=(gs.DealerIndex+1)%gs.Players.Count;gs.Round++;
+                Poker.DealNewRound(gs);room.GameState=gs;
+                await BroadcastPokerState(room,gs,hub,null);
+                MaybeScheduleBot(room,gs,hub,rm,log);
+            } else {
+                await BroadcastPokerState(room,gs,hub,null);
+                MaybeScheduleBot(room,gs,hub,rm,log);
+            }
+        } else {
+            await BroadcastPokerState(room,gs,hub,null);
+            MaybeScheduleBot(room,gs,hub,rm,log);
+        }
+    }
+
+    private static void MaybeScheduleBot(Room room,PokerGameState gs,IHubContext<GameHubSignalR> hub,RoomManager rm,ILogger log)
+    {
+        if(!room.IsVsBot||gs.GameOver)return;
+        var cur=gs.Players.ElementAtOrDefault(gs.CurrentPlayerIndex);
+        if(cur==null||!BotAI.IsBot(cur.Id))return;
+        _=Task.Run(async()=>{await Task.Delay(900+new Random().Next(600));await PokerBotTurn(room,hub,rm,log);});
+    }
+
+    private static async Task PokerBotTurn(Room room,IHubContext<GameHubSignalR> hub,RoomManager rm,ILogger log)
+    {
+        if(room.GameState is not PokerGameState gs||gs.GameOver)return;
+        var cur=gs.Players.ElementAtOrDefault(gs.CurrentPlayerIndex);
+        if(cur==null||!BotAI.IsBot(cur.Id))return;
+        var(action,amount)=BotAI.PokerBotAction(gs,room.BotDifficulty,cur.Id);
+        await HandlePokerAction(room,gs,cur.Id,action,amount,hub,rm,log);
+    }
+
+    private static async Task BroadcastPokerState(Room room,PokerGameState gs,IHubContext<GameHubSignalR> hub,string? showAllId)
+    {
+        bool showdown=gs.Phase=="showdown"||gs.Winner!=null;
+        // Send each real player their private view
+        foreach(var rp in room.Players.Where(p=>!BotAI.IsBot(p.Id)))
+            await hub.Clients.Client(rp.Id).SendAsync("poker:state",MkPokerView(gs,showdown?null:rp.Id));
+        // Also send full state to any spectators / Bot (no-op)
+    }
+
+    private static object MkPokerView(PokerGameState gs, string? viewerId)
+    {
+        bool showdown=gs.Phase=="showdown"||gs.Winner!=null;
+        var players=gs.Players.Select(p=>new{
+            p.Id,p.Nickname,p.Color,p.Chips,p.CurrentBet,p.Folded,p.AllIn,p.Score,
+            hand=(showdown||p.Id==viewerId)?(object)p.Hand:p.Hand.Select(_=>(object)new{hidden=true}).ToList()
+        }).ToList();
+        return new{gs.Pot,gs.CurrentBet,gs.Phase,gs.CommunityCards,gs.CurrentPlayerIndex,
+                   gs.SmallBlind,gs.BigBlind,gs.GameOver,gs.Winner,gs.WinReason,gs.Round,
+                   gs.ActionLog,gs.MinRaise,gs.DealerIndex,players};
     }
 
     public async Task GamePlayAgain()
@@ -338,6 +426,15 @@ public class GameHubSignalR : Hub
             await hub.Clients.Group(room.Code).SendAsync("game:start",new{gameType="mathquiz",gameState=gs});
             _ = Task.Run(async()=>{await Task.Delay(1000);await SendNextQuestionBg(room,hub,rm,logger);});
         }
+        else if (room.GameType=="poker")
+        {
+            var gs=Poker.CreateGameState(room.Players); room.GameState=gs;
+            await hub.Clients.Group(room.Code).SendAsync("game:start",new{gameType="poker",gameState=MkPokerView(gs,null)});
+            // Send private state to each player
+            foreach(var rp in room.Players.Where(p=>!BotAI.IsBot(p.Id)))
+                await hub.Clients.Client(rp.Id).SendAsync("poker:state",MkPokerView(gs,rp.Id));
+            if(room.IsVsBot){var h4=hub;var r4=rm;var l4=logger;_=Task.Run(async()=>{await Task.Delay(800);if(BotAI.IsBot(gs.Players[gs.CurrentPlayerIndex].Id))await PokerBotTurn(room,h4,r4,l4);});}
+        }
         await hub.Clients.All.SendAsync("stats:online",rm.GetOnlineCountByGame());
     }
 
@@ -346,7 +443,7 @@ public class GameHubSignalR : Hub
         var cts=new CancellationTokenSource(); lock(LoopLock){GameLoops[room.Code]=cts;}
         try { while(!cts.IsCancellationRequested&&room.State=="PLAYING"){await Task.Delay(Snake.TickRate);if(cts.IsCancellationRequested||room.State!="PLAYING")break;
             // Bot AI: update direction each tick
-            if(room.IsVsBot){var botDir=BotAI.SnakeBotDirection(gs);Snake.SetDirection(gs,BotAI.BOT_ID,botDir);}
+            if(room.IsVsBot){var botDir=BotAI.SnakeBotDirection(gs,room.BotDifficulty);Snake.SetDirection(gs,BotAI.BOT_ID,botDir);}
             Snake.Tick(gs);await hub.Clients.Group(room.Code).SendAsync("snake:tick",gs);if(gs.GameOver){StopLoop(room.Code);await EndGameBg(room,gs.Winner,hub,rm,logger);break;}} }
         catch(Exception ex){logger.LogError(ex,"Snake {Code}",room.Code);}
     }
@@ -355,7 +452,7 @@ public class GameHubSignalR : Hub
     {
         var cts=new CancellationTokenSource(); lock(LoopLock){GameLoops[room.Code]=cts;}
         try { while(!cts.IsCancellationRequested&&room.State=="PLAYING"){await Task.Delay(Pong.TickRate);if(cts.IsCancellationRequested||room.State!="PLAYING")break;
-            if(room.IsVsBot){var botDir=BotAI.PongBotDirection(gs);Pong.SetPaddleMoving(gs,BotAI.BOT_ID,botDir);}
+            if(room.IsVsBot){var botDir=BotAI.PongBotDirection(gs,room.BotDifficulty);Pong.SetPaddleMoving(gs,BotAI.BOT_ID,botDir);}
             Pong.Tick(gs);await hub.Clients.Group(room.Code).SendAsync("pong:tick",gs);if(gs.GameOver){StopLoop(room.Code);await EndGameBg(room,gs.Winner,hub,rm,logger);break;}} }
         catch(Exception ex){logger.LogError(ex,"Pong {Code}",room.Code);}
     }
@@ -402,7 +499,7 @@ public class GameHubSignalR : Hub
         if(gs.GameOver){await EndGameBg(room,gs.Winner,hub,rm,logger);return;}
         await hub.Clients.Group(room.Code).SendAsync("mathquiz:question",new{question=gs.CurrentQuestion,questionIndex=gs.QuestionIndex,totalQuestions=gs.TotalQuestions,timeLeft=MathQuiz.TimePerQ});
         // Bot answers after random delay
-        if(room.IsVsBot){ var (delay,ans)=BotAI.MathBotAnswer(gs); _ = Task.Run(async()=>{await Task.Delay(delay);if(room.State=="PLAYING"&&gs.Phase=="QUESTION"){var (v,c,all,ca)=MathQuiz.SubmitAnswer(gs,BotAI.BOT_ID,ans);if(v){await hub.Clients.Group(room.Code).SendAsync("mathquiz:answered",new{playerId=BotAI.BOT_ID,correct=c,correctAnswer=c?ca:(int?)null,players=gs.Players});if(all){StopLoop(room.Code+"_math");await Task.Delay(2000);if(room.State=="PLAYING")await SendNextQuestionBg(room,hub,rm,logger);}}}});}
+        if(room.IsVsBot){ var (delay,ans)=BotAI.MathBotAnswer(gs,room.BotDifficulty); _ = Task.Run(async()=>{await Task.Delay(delay);if(room.State=="PLAYING"&&gs.Phase=="QUESTION"){var (v,c,all,ca)=MathQuiz.SubmitAnswer(gs,BotAI.BOT_ID,ans);if(v){await hub.Clients.Group(room.Code).SendAsync("mathquiz:answered",new{playerId=BotAI.BOT_ID,correct=c,correctAnswer=c?ca:(int?)null,players=gs.Players});if(all){StopLoop(room.Code+"_math");await Task.Delay(2000);if(room.State=="PLAYING")await SendNextQuestionBg(room,hub,rm,logger);}}}});}
         var cts=new CancellationTokenSource(); lock(LoopLock){GameLoops[room.Code+"_math"]=cts;}
         _ = Task.Run(async()=>
         {
@@ -422,5 +519,5 @@ public class GameHubSignalR : Hub
     { lock(LoopLock){if(GameLoops.TryGetValue(key,out var cts)){cts.Cancel();cts.Dispose();GameLoops.Remove(key);}} }
 
     private static void StopAllLoops(string roomCode)
-    { lock(LoopLock){foreach(var k in new[]{roomCode,roomCode+"_chess",roomCode+"_math"}) if(GameLoops.TryGetValue(k,out var cts)){cts.Cancel();cts.Dispose();GameLoops.Remove(k);}} }
+    { lock(LoopLock){foreach(var k in new[]{roomCode,roomCode+"_chess",roomCode+"_math",roomCode+"_poker"}) if(GameLoops.TryGetValue(k,out var cts)){cts.Cancel();cts.Dispose();GameLoops.Remove(k);}} }
 }

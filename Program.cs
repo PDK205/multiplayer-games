@@ -25,6 +25,7 @@ app.MapGet("/snake", () => Results.Content(HtmlPages.Snake, "text/html"));
 app.MapGet("/pong", () => Results.Content(HtmlPages.Pong, "text/html"));
 app.MapGet("/chess", () => Results.Content(HtmlPages.Chess, "text/html"));
 app.MapGet("/mathquiz", () => Results.Content(HtmlPages.MathQuiz, "text/html"));
+app.MapGet("/poker", () => Results.Content(HtmlPages.Poker, "text/html"));
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "3000";
 app.Urls.Add($"http://0.0.0.0:{port}");

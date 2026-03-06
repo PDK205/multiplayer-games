@@ -34,6 +34,7 @@ public class Room
     public long? FinishedAt { get; set; }
     public object? GameState { get; set; }
     public bool IsVsBot { get; set; } = false;
+    public string BotDifficulty { get; set; } = "medium";
 }
 
 // ══════════════════════════════════════════
@@ -200,4 +201,30 @@ public class GameConfig
 {
     public int MaxPlayers { get; set; }
     public int MinPlayers { get; set; }
+}
+
+// ══════════════════════════════════════════
+//  POKER MODELS
+// ══════════════════════════════════════════
+public class PokerCard { public string Suit{get;set;}=""; public string Rank{get;set;}=""; public int Value{get;set;} }
+
+public class PokerPlayer
+{
+    public string Id{get;set;}=""; public string Nickname{get;set;}=""; public string Color{get;set;}="";
+    public int Chips{get;set;}=1000; public List<PokerCard> Hand{get;set;}=new();
+    public int CurrentBet{get;set;}=0; public bool Folded{get;set;}=false; public bool AllIn{get;set;}=false; public int Score{get;set;}=0;
+}
+
+public class PokerGameState
+{
+    public List<PokerPlayer> Players{get;set;}=new();
+    public List<PokerCard> CommunityCards{get;set;}=new();
+    public List<PokerCard> Deck{get;set;}=new();
+    public int Pot{get;set;}=0; public int CurrentBet{get;set;}=0;
+    public int SmallBlind{get;set;}=10; public int BigBlind{get;set;}=20;
+    public int DealerIndex{get;set;}=0; public int CurrentPlayerIndex{get;set;}=0;
+    public HashSet<int> NeedsToAct{get;set;}=new();
+    public string Phase{get;set;}="preflop";
+    public bool GameOver{get;set;}=false; public string? Winner{get;set;} public string? WinReason{get;set;}
+    public int Round{get;set;}=1; public List<string> ActionLog{get;set;}=new(); public int MinRaise{get;set;}=20;
 }

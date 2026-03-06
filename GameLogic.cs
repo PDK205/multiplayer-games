@@ -563,36 +563,44 @@ public static class MathQuiz
 // ══════════════════════════════════════════
 //  BOT AI - Tất cả 5 game
 // ══════════════════════════════════════════
-public static class BotAI
+public static partial class BotAI
 {
     public const string BOT_ID   = "BOT_AI_001";
     public const string BOT_NAME = "🤖 Bot";
     public const string BOT_COLOR= "#cc44ff";
+    public static readonly string[] POKER_BOT_IDS   = {"BOT_AI_001","BOT_AI_002","BOT_AI_003","BOT_AI_004","BOT_AI_005"};
+    public static readonly string[] POKER_BOT_NAMES  = {"🤖 Alpha","🎰 Beta","♠ Gamma","🃏 Delta","🎲 Omega"};
+    public static readonly string[] POKER_BOT_COLORS = {"#cc44ff","#ff4466","#44aaff","#ffaa00","#44dd88"};
+    public static bool IsBot(string id) => Array.IndexOf(POKER_BOT_IDS, id) >= 0;
     private static readonly Random Rng = new();
 
     // ── Tạo RoomPlayer cho Bot ────────────────────────────────
-    public static RoomPlayer MakeBotPlayer() => new()
+    public static RoomPlayer MakeBotPlayer(int idx=0) => new()
     {
-        Id = BOT_ID, Nickname = BOT_NAME, Color = BOT_COLOR, IsReady = true
+        Id    = POKER_BOT_IDS[idx % POKER_BOT_IDS.Length],
+        Nickname = POKER_BOT_NAMES[idx % POKER_BOT_NAMES.Length],
+        Color = POKER_BOT_COLORS[idx % POKER_BOT_COLORS.Length],
+        IsReady = true
     };
 
     // ══════════════════════════════════════
     //  TIC-TAC-TOE  –  Minimax (bất bại)
     // ══════════════════════════════════════
-    public static int TttBotMove(TttGameState gs)
+    public static int TttBotMove(TttGameState gs, string diff = "medium")
     {
-        // Bot always plays as 'O' (second player)
         string botSymbol = gs.Players.FirstOrDefault(p => p.Id == BOT_ID)?.Symbol ?? "O";
         string humanSymbol = botSymbol == "O" ? "X" : "O";
-
-        int bestScore = int.MinValue, bestCell = -1;
-        for (int i = 0; i < 9; i++)
-        {
-            if (gs.Board[i] != null) continue;
-            gs.Board[i] = botSymbol;
-            int score = TttMinimax(gs.Board, 0, false, botSymbol, humanSymbol);
-            gs.Board[i] = null;
-            if (score > bestScore) { bestScore = score; bestCell = i; }
+        var empty = Enumerable.Range(0,9).Where(i=>gs.Board[i]==null).ToList();
+        if(empty.Count==0) return -1;
+        // Easy: 65% random; Medium: 35% random; Hard: pure minimax
+        double rndChance = diff=="easy"?0.65:diff=="medium"?0.35:0.0;
+        if(Rng.NextDouble()<rndChance) return empty[Rng.Next(empty.Count)];
+        int bestScore=int.MinValue, bestCell=-1;
+        foreach(int i in empty){
+            gs.Board[i]=botSymbol;
+            int score=TttMinimax(gs.Board,0,false,botSymbol,humanSymbol);
+            gs.Board[i]=null;
+            if(score>bestScore){bestScore=score;bestCell=i;}
         }
         return bestCell;
     }
@@ -631,7 +639,7 @@ public static class BotAI
     // ══════════════════════════════════════
     //  SNAKE  –  Pathfinding (BFS to food)
     // ══════════════════════════════════════
-    public static string SnakeBotDirection(SnakeGameState gs)
+    public static string SnakeBotDirection(SnakeGameState gs, string diff = "medium")
     {
         var bot = gs.Snakes.FirstOrDefault(s => s.Id == BOT_ID);
         if (bot == null || !bot.Alive || bot.Body.Count == 0) return "RIGHT";
@@ -639,6 +647,14 @@ public static class BotAI
         var head = bot.Body[0];
         var food = gs.Food;
         int gs2 = gs.GridSize;
+        // Easy: 55% random dir; Medium: 25% random
+        double rc = diff=="easy"?0.55:diff=="medium"?0.25:0.0;
+        if(rc>0 && Rng.NextDouble()<rc){
+            string[] rndDirs={"UP","DOWN","LEFT","RIGHT"};
+            var opp2=new Dictionary<string,string>{{"UP","DOWN"},{"DOWN","UP"},{"LEFT","RIGHT"},{"RIGHT","LEFT"}};
+            var safe2=rndDirs.Where(d=>{var(dx2,dy2)=d=="UP"?(0,-1):d=="DOWN"?(0,1):d=="LEFT"?(-1,0):(1,0);int nx2=head.X+dx2,ny2=head.Y+dy2;return nx2>=0&&nx2<gs2&&ny2>=0&&ny2<gs2&&opp2[d]!=bot.Direction;}).ToList();
+            if(safe2.Count>0)return safe2[Rng.Next(safe2.Count)];
+        }
 
         // Build occupied set (all snake bodies)
         var occupied = new HashSet<(int,int)>();
@@ -686,16 +702,20 @@ public static class BotAI
     // ══════════════════════════════════════
     //  PONG  –  Bot tracks ball
     // ══════════════════════════════════════
-    public static string? PongBotDirection(PongGameState gs)
+    public static string? PongBotDirection(PongGameState gs, string diff = "medium")
     {
         if (!gs.Paddles.TryGetValue(BOT_ID, out var paddle)) return null;
+        // Easy: react 40% of time, big error; Medium: 72%; Hard: 96%, tiny error
+        double react = diff=="easy"?0.40:diff=="medium"?0.72:0.96;
+        if(Rng.NextDouble()>react) return null;
         var ball = gs.Ball;
         double paddleMid = paddle.Y + Pong.PH / 2.0;
-        double ballMid   = ball.Y + Pong.BS / 2.0;
-        double diff = ballMid - paddleMid;
-        // Dead zone ±10px to avoid jitter
-        if (diff < -10) return "up";
-        if (diff >  10) return "down";
+        double err = diff=="easy"?Rng.Next(-50,50):diff=="medium"?Rng.Next(-18,18):Rng.Next(-4,4);
+        double ballMid = ball.Y + Pong.BS / 2.0 + err;
+        double dead = diff=="easy"?35:diff=="medium"?12:5;
+        double d = ballMid - paddleMid;
+        if (d < -dead) return "up";
+        if (d >  dead) return "down";
         return null;
     }
 
@@ -705,10 +725,17 @@ public static class BotAI
     private static readonly Dictionary<char,int> PieceVal = new()
     { {'P',100},{'N',320},{'B',330},{'R',500},{'Q',900},{'K',20000} };
 
-    public static (int from, int to, string? promo) ChessBotMove(ChessGameState gs)
+    public static (int from, int to, string? promo) ChessBotMove(ChessGameState gs, string diff = "medium")
     {
         string botSide = gs.Players.FirstOrDefault(p => p.Id == BOT_ID)?.Side ?? "black";
-        var (from, to, promo, _) = ChessAlphaBeta(gs, 3, int.MinValue, int.MaxValue, true, botSide);
+        // Easy: 55% random move, depth 1; Medium: depth 2; Hard: depth 3
+        if(diff=="easy" && Rng.NextDouble()<0.55){
+            var allM=Chess.GetAllLegalMoves(gs,gs.CurrentTurn);
+            var flat=allM.SelectMany(kv=>kv.Value.Select(t=>(kv.Key,t))).ToList();
+            if(flat.Count>0){var(f,t)=flat[Rng.Next(flat.Count)];string? pr=gs.Board[f]?[1]=='P'&&(t<8||t>=56)?"Q":null;return(f,t,pr);}
+        }
+        int depth=diff=="easy"?1:diff=="medium"?2:3;
+        var (from, to, promo, _) = ChessAlphaBeta(gs, depth, int.MinValue, int.MaxValue, true, botSide);
         return (from, to, promo);
     }
 
@@ -800,14 +827,315 @@ public static class BotAI
     // ══════════════════════════════════════
     //  MATH QUIZ  –  Bot trả lời ngẫu nhiên
     // ══════════════════════════════════════
-    public static (int delay, string answer) MathBotAnswer(MathGameState gs)
+    public static (int delay, string answer) MathBotAnswer(MathGameState gs, string diff = "medium")
     {
-        // Bot trả lời sau 1-5 giây, đúng 70% trả lời đúng
-        int delayMs = Rng.Next(1000, 5000);
-        bool correct = Rng.NextDouble() < 0.70;
-        string answer = correct
-            ? gs.CorrectAnswer?.ToString() ?? "0"
-            : (gs.CorrectAnswer.GetValueOrDefault() + Rng.Next(-5,6)).ToString();
+        // Easy: chậm 4-8s, đúng 35%; Medium: 1.5-4s, đúng 70%; Hard: 0.3-1.5s, đúng 95%
+        int delayMs = diff=="hard"?Rng.Next(300,1500):diff=="easy"?Rng.Next(4000,8000):Rng.Next(1500,4000);
+        double acc = diff=="hard"?0.95:diff=="easy"?0.35:0.70;
+        bool correct = Rng.NextDouble()<acc;
+        string answer = correct ? gs.CorrectAnswer?.ToString()??"0"
+            : (gs.CorrectAnswer.GetValueOrDefault()+Rng.Next(-9,10)).ToString();
         return (delayMs, answer);
+    }
+}
+// ══════════════════════════════════════════
+//  POKER GAME
+// ══════════════════════════════════════════
+public static class Poker
+{
+    private static readonly Random Rng = new();
+    private static readonly string[] Suits = {"♠","♥","♦","♣"};
+    private static readonly string[] Ranks = {"2","3","4","5","6","7","8","9","10","J","Q","K","A"};
+
+    public static List<PokerCard> NewShuffledDeck()
+    {
+        var deck = new List<PokerCard>();
+        for(int ri=0;ri<Ranks.Length;ri++)
+            foreach(var s in Suits)
+                deck.Add(new PokerCard{Suit=s,Rank=Ranks[ri],Value=ri+2});
+        for(int i=deck.Count-1;i>0;i--){int j=Rng.Next(i+1);(deck[i],deck[j])=(deck[j],deck[i]);}
+        return deck;
+    }
+
+    public static PokerGameState CreateGameState(List<RoomPlayer> players)
+    {
+        var gs=new PokerGameState{SmallBlind=10,BigBlind=20,MinRaise=20,Round=1};
+        gs.Players=players.Select(p=>new PokerPlayer{Id=p.Id,Nickname=p.Nickname,Color=p.Color,Chips=1000}).ToList();
+        DealNewRound(gs);
+        return gs;
+    }
+
+    public static void DealNewRound(PokerGameState gs)
+    {
+        gs.Deck=NewShuffledDeck();
+        gs.CommunityCards=new List<PokerCard>();
+        gs.Pot=0; gs.CurrentBet=gs.BigBlind; gs.MinRaise=gs.BigBlind; gs.Phase="preflop";
+        gs.Winner=null; gs.WinReason=null; gs.ActionLog=new List<string>();
+        foreach(var p in gs.Players.ToList()) if(p.Chips<=0) gs.Players.Remove(p);
+        if(gs.Players.Count<2){gs.GameOver=true;return;}
+        foreach(var p in gs.Players){p.Hand=new List<PokerCard>();p.CurrentBet=0;p.Folded=false;p.AllIn=false;}
+        int n=gs.Players.Count;
+        gs.DealerIndex=gs.DealerIndex%n;
+        int sb=(gs.DealerIndex+1)%n;
+        int bb=(gs.DealerIndex+2)%n;
+        foreach(var p in gs.Players) for(int i=0;i<2;i++){p.Hand.Add(gs.Deck[0]);gs.Deck.RemoveAt(0);}
+        ForceBet(gs,gs.Players[sb],gs.SmallBlind);
+        ForceBet(gs,gs.Players[bb],gs.BigBlind);
+        // Pre-flop: everyone except BB needs to act (BB gets option at end)
+        gs.NeedsToAct=new HashSet<int>(Enumerable.Range(0,n).Where(i=>!gs.Players[i].Folded&&!gs.Players[i].AllIn));
+        // BB already "acted" (posted blind) but still gets option — keep BB in NeedsToAct
+        gs.CurrentPlayerIndex=NextActive(gs,(bb+1)%n);
+        gs.ActionLog.Add($"Ván {gs.Round} — Dealer: {gs.Players[gs.DealerIndex].Nickname}");
+        gs.ActionLog.Add($"SB {gs.SmallBlind} • BB {gs.BigBlind}");
+    }
+
+    private static void ForceBet(PokerGameState gs,PokerPlayer p,int amt)
+    {
+        int a=Math.Min(amt,p.Chips);
+        p.Chips-=a; p.CurrentBet+=a; gs.Pot+=a;
+        if(p.Chips==0) p.AllIn=true;
+    }
+
+    private static int NextActive(PokerGameState gs, int from)
+    {
+        int n=gs.Players.Count, idx=from%n;
+        for(int i=0;i<n;i++){
+            if(!gs.Players[idx].Folded&&!gs.Players[idx].AllIn) return idx;
+            idx=(idx+1)%n;
+        }
+        return from%n;
+    }
+
+    private static void Bet(PokerGameState gs,PokerPlayer p,int amt)
+    {
+        int a=Math.Min(amt,p.Chips);
+        p.Chips-=a; p.CurrentBet+=a; gs.Pot+=a;
+        if(p.Chips==0) p.AllIn=true;
+    }
+
+    public static (string? error, bool phaseOver) Act(PokerGameState gs, string playerId, string action, int amount=0)
+    {
+        var p=gs.Players.ElementAtOrDefault(gs.CurrentPlayerIndex);
+        if(p==null||p.Id!=playerId) return("Not your turn",false);
+        if(p.Folded||p.AllIn){
+            gs.NeedsToAct.Remove(gs.CurrentPlayerIndex);
+            gs.CurrentPlayerIndex=NextActive(gs,(gs.CurrentPlayerIndex+1)%gs.Players.Count);
+            return(null,gs.NeedsToAct.Count==0);
+        }
+
+        int n=gs.Players.Count;
+        int myIdx=gs.CurrentPlayerIndex;
+
+        switch(action)
+        {
+            case "fold":
+                p.Folded=true;
+                gs.NeedsToAct.Remove(myIdx);
+                gs.ActionLog.Add($"{p.Nickname} bỏ bài");
+                break;
+            case "check":
+                if(gs.CurrentBet>p.CurrentBet) return("Phải gọi hoặc tăng",false);
+                gs.NeedsToAct.Remove(myIdx);
+                gs.ActionLog.Add($"{p.Nickname} check");
+                break;
+            case "call":
+                int callAmt=Math.Min(gs.CurrentBet-p.CurrentBet,p.Chips);
+                Bet(gs,p,callAmt);
+                gs.NeedsToAct.Remove(myIdx);
+                gs.ActionLog.Add($"{p.Nickname} gọi {callAmt}");
+                break;
+            case "raise":
+            {
+                int minR=Math.Max(gs.MinRaise,gs.BigBlind);
+                int toAdd=amount>0?amount:minR;
+                toAdd=Math.Min(toAdd,p.Chips);
+                int newTotal=p.CurrentBet+toAdd;
+                if(newTotal<=gs.CurrentBet){
+                    // Treat as call if raise amount insufficient
+                    int ca2=Math.Min(gs.CurrentBet-p.CurrentBet,p.Chips);
+                    Bet(gs,p,ca2);
+                    gs.NeedsToAct.Remove(myIdx);
+                    gs.ActionLog.Add($"{p.Nickname} gọi {ca2}");
+                } else {
+                    gs.MinRaise=newTotal-gs.CurrentBet;
+                    gs.CurrentBet=newTotal;
+                    Bet(gs,p,toAdd);
+                    // Reopen action: everyone active (except raiser) must act again
+                    gs.NeedsToAct=new HashSet<int>(
+                        Enumerable.Range(0,n).Where(i=>i!=myIdx&&!gs.Players[i].Folded&&!gs.Players[i].AllIn));
+                    gs.ActionLog.Add($"{p.Nickname} nâng {p.CurrentBet}");
+                }
+                break;
+            }
+            case "allin":
+            {
+                int chips=p.Chips;
+                int prevBet=p.CurrentBet;
+                Bet(gs,p,chips);
+                if(p.CurrentBet>gs.CurrentBet){
+                    gs.MinRaise=p.CurrentBet-gs.CurrentBet;
+                    gs.CurrentBet=p.CurrentBet;
+                    gs.NeedsToAct=new HashSet<int>(
+                        Enumerable.Range(0,n).Where(i=>i!=myIdx&&!gs.Players[i].Folded&&!gs.Players[i].AllIn));
+                } else {
+                    gs.NeedsToAct.Remove(myIdx);
+                }
+                gs.ActionLog.Add($"{p.Nickname} all-in {chips}!");
+                break;
+            }
+            default: return("Hành động không hợp lệ",false);
+        }
+
+        // Only one player left?
+        var stillIn=gs.Players.Where(x=>!x.Folded).ToList();
+        if(stillIn.Count==1){
+            stillIn[0].Chips+=gs.Pot;
+            gs.ActionLog.Add($"🏆 {stillIn[0].Nickname} thắng {gs.Pot} chips!");
+            gs.Pot=0; gs.Winner=stillIn[0].Id; gs.WinReason="fold";
+            return(null,true);
+        }
+
+        // Advance to next player who needs to act
+        if(gs.NeedsToAct.Count>0){
+            // Find next in NeedsToAct going forward
+            int next=(myIdx+1)%n;
+            for(int i=0;i<n;i++){
+                if(gs.NeedsToAct.Contains(next)&&!gs.Players[next].Folded&&!gs.Players[next].AllIn){
+                    gs.CurrentPlayerIndex=next; break;
+                }
+                next=(next+1)%n;
+            }
+        }
+        return(null,gs.NeedsToAct.Count==0);
+    }
+
+    // Returns true = hand over (go to showdown)
+    public static bool DealNextStreet(PokerGameState gs)
+    {
+        foreach(var p in gs.Players){p.CurrentBet=0;}
+        gs.CurrentBet=0; gs.MinRaise=gs.BigBlind;
+        int n=gs.Players.Count;
+        // Post-flop: all active players need to act, first active after dealer goes first
+        gs.NeedsToAct=new HashSet<int>(Enumerable.Range(0,n).Where(i=>!gs.Players[i].Folded&&!gs.Players[i].AllIn));
+        gs.CurrentPlayerIndex=NextActive(gs,(gs.DealerIndex+1)%n);
+        switch(gs.Phase){
+            case "preflop":
+                gs.Phase="flop"; gs.Deck.RemoveAt(0);
+                for(int i=0;i<3;i++){gs.CommunityCards.Add(gs.Deck[0]);gs.Deck.RemoveAt(0);}
+                gs.ActionLog.Add("━━ FLOP ━━"); break;
+            case "flop":
+                gs.Phase="turn"; gs.Deck.RemoveAt(0);
+                gs.CommunityCards.Add(gs.Deck[0]);gs.Deck.RemoveAt(0);
+                gs.ActionLog.Add("━━ TURN ━━"); break;
+            case "turn":
+                gs.Phase="river"; gs.Deck.RemoveAt(0);
+                gs.CommunityCards.Add(gs.Deck[0]);gs.Deck.RemoveAt(0);
+                gs.ActionLog.Add("━━ RIVER ━━"); break;
+            case "river": gs.Phase="showdown"; return true;
+        }
+        // If all active are all-in, no actions needed
+        if(gs.NeedsToAct.Count==0) return false;
+        return false;
+    }
+
+
+    public static string DoShowdown(PokerGameState gs)
+    {
+        gs.Phase="showdown";
+        var active=gs.Players.Where(p=>!p.Folded).ToList();
+        PokerPlayer? best=null; int bestSc=-1; string? bestNm=null;
+        foreach(var p in active){
+            var(sc,nm)=BestHand(p.Hand.Concat(gs.CommunityCards).ToList());
+            if(sc>bestSc){bestSc=sc;best=p;bestNm=nm;}
+        }
+        if(best!=null){
+            best.Chips+=gs.Pot; gs.Winner=best.Id; gs.WinReason=bestNm;
+            gs.ActionLog.Add($"🏆 {best.Nickname} thắng {gs.Pot} chips với {bestNm}!");
+            gs.Pot=0;
+            return best.Id;
+        }
+        return "";
+    }
+
+    public static (int sc,string nm) BestHand(List<PokerCard> cards)
+    {
+        var best=(sc:0,nm:"High Card");
+        foreach(var combo in Combos(cards,5)){var r=Rate5(combo);if(r.sc>best.sc)best=r;}
+        return best;
+    }
+
+    private static (int sc,string nm) Rate5(List<PokerCard> c)
+    {
+        var v=c.Select(x=>x.Value).OrderByDescending(x=>x).ToList();
+        bool fl=c.Select(x=>x.Suit).Distinct().Count()==1;
+        var gr=v.GroupBy(x=>x).OrderByDescending(g=>g.Count()).ThenByDescending(g=>g.Key).ToList();
+        bool st=v[0]-v[4]==4&&gr.Count==5;
+        bool wheel=v[0]==14&&v[1]==5&&v[2]==4&&v[3]==3&&v[4]==2;
+        if(wheel){st=true;v=new List<int>{5,4,3,2,1};}
+        int b; string nm;
+        if(st&&fl){b=8000000;nm=v[0]==14?"Royal Flush":"Straight Flush";}
+        else if(gr[0].Count()==4){b=7000000;nm="Four of a Kind";}
+        else if(gr[0].Count()==3&&gr[1].Count()==2){b=6000000;nm="Full House";}
+        else if(fl){b=5000000;nm="Flush";}
+        else if(st){b=4000000;nm="Straight";}
+        else if(gr[0].Count()==3){b=3000000;nm="Three of a Kind";}
+        else if(gr[0].Count()==2&&gr[1].Count()==2){b=2000000;nm="Two Pair";}
+        else if(gr[0].Count()==2){b=1000000;nm="One Pair";}
+        else{b=0;nm="High Card";}
+        int tb=0; foreach(var gg in gr)tb=tb*20+gg.Key;
+        return(b+tb,nm);
+    }
+
+    private static IEnumerable<List<PokerCard>> Combos(List<PokerCard> src,int k)
+    {
+        if(k==0){yield return new List<PokerCard>();yield break;}
+        for(int i=0;i<=src.Count-k;i++)
+            foreach(var r in Combos(src.Skip(i+1).ToList(),k-1))
+                yield return new[]{src[i]}.Concat(r).ToList();
+    }
+}
+
+// Poker Bot (added to BotAI as extension)
+public static partial class BotAI
+{
+    public static (string action, int amount) PokerBotAction(PokerGameState gs, string diff = "medium", string? botId = null)
+    {
+        var bot=gs.Players.FirstOrDefault(p=>p.Id==(botId??BOT_ID));
+        if(bot==null||bot.Folded||bot.AllIn) return("check",0);
+        var all=bot.Hand.Concat(gs.CommunityCards).ToList();
+        double str=all.Count>=5?Strength5(all):PreFlop(bot.Hand);
+        bool canCheck=gs.CurrentBet<=bot.CurrentBet;
+        if(diff=="easy"){
+            if(str>0.78&&Rng.NextDouble()<0.4) return("call",0);
+            if(canCheck) return("check",0);
+            return Rng.NextDouble()<0.65?("fold",0):("call",0);
+        }
+        if(diff=="medium"){
+            if(str>0.82) return Rng.NextDouble()<0.55?("raise",gs.BigBlind*2):("call",0);
+            if(str>0.55) return("call",0);
+            if(canCheck) return("check",0);
+            return Rng.NextDouble()<0.28?("call",0):("fold",0);
+        }
+        // hard
+        if(str>0.88) return("raise",gs.BigBlind*4);
+        if(str>0.68) return Rng.NextDouble()<0.65?("raise",gs.BigBlind*2):("call",0);
+        if(str>0.42) return("call",0);
+        if(canCheck) return Rng.NextDouble()<0.22?("raise",gs.BigBlind*2):("check",0);
+        return Rng.NextDouble()<0.18?("call",0):("fold",0);
+    }
+    private static double PreFlop(List<PokerCard> h){
+        if(h.Count<2)return 0.3;
+        int a=h[0].Value,b=h[1].Value; bool s=h[0].Suit==h[1].Suit; bool pr=a==b;
+        int hi=Math.Max(a,b),lo=Math.Min(a,b);
+        if(pr&&hi>=10)return 0.92; if(pr)return 0.72;
+        if(hi==14&&lo>=10)return 0.85; if(hi==14)return 0.62;
+        if(hi>=12&&s)return 0.68; if(hi>=12)return 0.55;
+        return 0.32+(s?0.1:0);
+    }
+    private static double Strength5(List<PokerCard> cards){
+        var(sc,_)=Poker.BestHand(cards);
+        if(sc>=8000000)return 1.0; if(sc>=7000000)return 0.97; if(sc>=6000000)return 0.94;
+        if(sc>=5000000)return 0.87; if(sc>=4000000)return 0.79; if(sc>=3000000)return 0.70;
+        if(sc>=2000000)return 0.58; if(sc>=1000000)return 0.44; return 0.25;
     }
 }

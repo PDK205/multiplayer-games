@@ -17,7 +17,8 @@ public class RoomManager
         ["snake"]     = new() { MaxPlayers = 4, MinPlayers = 2 },
         ["pong"]      = new() { MaxPlayers = 2, MinPlayers = 2 },
         ["chess"]     = new() { MaxPlayers = 2, MinPlayers = 2 },
-        ["mathquiz"]  = new() { MaxPlayers = 4, MinPlayers = 2 }
+        ["mathquiz"]  = new() { MaxPlayers = 4, MinPlayers = 2 },
+        ["poker"]     = new() { MaxPlayers = 6, MinPlayers = 2 }
     };
 
     // ── Room code generation ──────────────────────────────────
@@ -102,7 +103,7 @@ public class RoomManager
 
     public Dictionary<string, int> GetOnlineCountByGame()
     {
-        var counts = new Dictionary<string, int> { ["tictactoe"]=0,["snake"]=0,["pong"]=0,["chess"]=0,["mathquiz"]=0 };
+        var counts = new Dictionary<string, int> { ["tictactoe"]=0,["snake"]=0,["pong"]=0,["chess"]=0,["mathquiz"]=0,["poker"]=0 };
         foreach (var room in _rooms.Values)
             if ((room.State == "PLAYING" || room.State == "WAITING") && counts.ContainsKey(room.GameType))
                 counts[room.GameType] += room.Players.Count;
@@ -134,9 +135,13 @@ public class RoomManager
         foreach (var code in toRemove) _rooms.Remove(code);
     }
 
-    public void AddBotToRoom(Room room)
+    public void AddBotToRoom(Room room, int idx=0)
     {
-        room.Players.Add(BotAI.MakeBotPlayer());
+        room.Players.Add(BotAI.MakeBotPlayer(idx));
+    }
+    public void AddPokerBots(Room room, int count=4)
+    {
+        for(int i=0;i<count;i++) room.Players.Add(BotAI.MakeBotPlayer(i));
     }
 
     public object GetRoomInfo(Room room) => new
