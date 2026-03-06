@@ -33,6 +33,7 @@ public class Room
     public long CreatedAt { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     public long? FinishedAt { get; set; }
     public object? GameState { get; set; }
+    public bool IsVsBot { get; set; } = false;
 }
 
 // ══════════════════════════════════════════

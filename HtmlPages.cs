@@ -86,8 +86,8 @@ canvas{border-radius:8px;border:1px solid var(--br);display:block;max-width:100%
 .result-rank{font-family:var(--fd);font-size:.78rem;width:26px;text-align:center;color:var(--dim)}
 .result-rank.gold{color:var(--ac4)}
 .result-score{margin-left:auto;font-weight:700;font-family:var(--fd)}
-.ttt-board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:340px;margin:20px auto;padding:18px}
-.ttt-cell{aspect-ratio:1;background:var(--bg3);border:1px solid var(--br);border-radius:10px;cursor:pointer;font-family:var(--fd);font-size:2.8rem;font-weight:700;transition:all .2s;display:flex;align-items:center;justify-content:center;color:var(--tx)}
+.ttt-board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:min(340px,90vw);margin:20px auto;padding:18px}
+.ttt-cell{aspect-ratio:1;background:var(--bg3);border:1px solid var(--br);border-radius:10px;cursor:pointer;font-family:var(--fd);font-size:clamp(1.8rem,8vw,2.8rem);font-weight:700;transition:all .2s;display:flex;align-items:center;justify-content:center;color:var(--tx);-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
 .ttt-cell:hover:not(.taken){background:var(--bg2);border-color:var(--ac)}
 .ttt-cell.taken{cursor:not-allowed}
 .ttt-cell.symbol-X{color:var(--ac)}
@@ -120,7 +120,36 @@ canvas{border-radius:8px;border:1px solid var(--br);display:block;max-width:100%
 @keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes winPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
 .hidden{display:none!important}
-@media(max-width:480px){.hub-header{padding:12px 14px}.games-grid{grid-template-columns:1fr 1fr;padding:14px;gap:10px}.game-card{padding:14px 12px}.math-question{font-size:2rem}.room-code{font-size:1.1rem}}";
+@media(max-width:480px){.hub-header{padding:12px 14px}.games-grid{grid-template-columns:1fr 1fr;padding:14px;gap:10px}.game-card{padding:14px 12px}.math-question{font-size:2rem}.room-code{font-size:1.1rem}}
+/* ── Mobile touch controls ── */
+.touch-dpad{display:none;position:fixed;bottom:24px;left:24px;z-index:200;user-select:none;}
+.touch-dpad-row{display:flex;justify-content:center;gap:4px;margin:2px 0;}
+.touch-btn{width:56px;height:56px;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.25);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;active-color:rgba(255,255,255,.3);}
+.touch-btn:active{background:rgba(255,255,255,.3);}
+.touch-paddle-area{display:none;position:fixed;bottom:0;z-index:200;width:100%;height:42%;pointer-events:none;}
+.touch-paddle-half{position:absolute;bottom:0;width:50%;height:100%;pointer-events:auto;-webkit-tap-highlight-color:transparent;touch-action:none;display:flex;flex-direction:column;}
+.touch-paddle-up{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.8rem;opacity:.35;}
+.touch-paddle-down{flex:1;display:flex;align-items:center;justify-content:center;font-size:1.8rem;opacity:.35;}
+.touch-paddle-half:active .touch-paddle-up,.touch-paddle-half:active .touch-paddle-down{opacity:.7;}
+@media(max-width:768px){
+  .touch-dpad{display:block;}
+  .touch-paddle-area{display:block;}
+  .game-header{padding:8px 12px;gap:6px;}
+  .scoreboard{gap:10px;}
+  .score-value{font-size:1rem;}
+  .chess-info{display:none!important;}
+  .pong-layout{padding:8px;gap:8px;min-height:auto;}
+  .snake-layout{grid-template-columns:1fr;padding:8px;}
+  .math-container{margin:16px auto;padding:0 12px;}
+  .math-question{font-size:2.2rem;padding:20px 12px;}
+  .math-input{font-size:1.2rem;padding:10px 14px;}
+  .ttt-board{max-width:96vw;padding:10px;gap:6px;}
+  .ttt-cell{font-size:2.2rem;}
+  .lobby-container{padding:0 10px;margin:14px auto;}
+  .room-code{font-size:1.2rem;}
+  .btn{padding:10px 14px;font-size:.9rem;}
+  .game-over-card{padding:22px 16px;}
+}";
 
     // ── SignalR Client JS (thay thế socket.io) ─────────────────
     // Đây là phần khác duy nhất so với Node.js: dùng SignalR thay socket.io
@@ -149,7 +178,8 @@ const socket = {
       'chess:move': 'ChessMove',
       'chess:getLegalMoves': 'ChessGetLegalMoves',
       'chess:getSquareMoves': 'ChessGetLegalMoves',
-      'chess:resign': 'ChessResign'
+      'chess:resign': 'ChessResign',
+      'room:playVsBot': 'RoomPlayVsBot'
     };
     const methodName = map[event] || event;
     const payload = args[0];
@@ -170,6 +200,7 @@ const socket = {
       else if (event === 'chess:getLegalMoves') callArgs = [payload.square];
       else if (event === 'chess:getSquareMoves') callArgs = [payload.square];
       else if (event === 'chess:resign') callArgs = [];
+      else if (event === 'room:playVsBot') callArgs = [payload.gameType];
       else callArgs = [payload];
     }
     connection.invoke(methodName, ...callArgs).catch(e => console.error(event, e));
@@ -211,6 +242,7 @@ function initLobby(gameType){
   const rc=params.get('room');
   if(rc)setTimeout(()=>socket.emit('room:join',{roomCode:rc}),600);
   const qp=document.getElementById('quickPlayBtn');if(qp)qp.addEventListener('click',()=>socket.emit('room:quickPlay',{gameType}));
+  const vb=document.getElementById('vsBotBtn');if(vb)vb.addEventListener('click',()=>socket.emit('room:playVsBot',{gameType}));
   const cr=document.getElementById('createRoomBtn');if(cr)cr.addEventListener('click',()=>socket.emit('room:create',{gameType}));
   const jrb=document.getElementById('joinRoomBtn'),jri=document.getElementById('joinRoomInput');
   if(jrb&&jri){jrb.addEventListener('click',()=>{const c=jri.value.trim().toUpperCase();c.length===6?socket.emit('room:join',{roomCode:c}):showToast('Mã phòng phải có 6 ký tự','error');});jri.addEventListener('keydown',e=>{if(e.key==='Enter')jrb.click();});}
@@ -279,27 +311,108 @@ socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('h
 
     private const string SnakeJS = @"
 let snakeCanvas,snakeCtx,snakeState=null;const GS=16;
-function initSnakeCanvas(gridSize){snakeCanvas=document.getElementById('snakeCanvas');const sz=gridSize*GS;snakeCanvas.width=sz;snakeCanvas.height=sz;snakeCtx=snakeCanvas.getContext('2d');}
+function initSnakeCanvas(gridSize){
+  snakeCanvas=document.getElementById('snakeCanvas');
+  const maxSz=Math.min(window.innerWidth*0.96,window.innerHeight*0.65,500);
+  const sz=gridSize*GS;
+  snakeCanvas.width=sz;snakeCanvas.height=sz;
+  const disp=Math.min(sz,maxSz);
+  snakeCanvas.style.width=disp+'px';snakeCanvas.style.height=disp+'px';
+  snakeCtx=snakeCanvas.getContext('2d');
+}
 function renderSnake(gs){snakeState=gs;const ctx=snakeCtx,s=GS;ctx.fillStyle='#0d0d14';ctx.fillRect(0,0,snakeCanvas.width,snakeCanvas.height);ctx.strokeStyle='rgba(255,255,255,.03)';ctx.lineWidth=.5;for(let i=0;i<=gs.gridSize;i++){ctx.beginPath();ctx.moveTo(i*s,0);ctx.lineTo(i*s,snakeCanvas.height);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*s);ctx.lineTo(snakeCanvas.width,i*s);ctx.stroke();}const f=gs.food;ctx.fillStyle='#ff4466';ctx.shadowColor='#ff4466';ctx.shadowBlur=10;ctx.beginPath();ctx.arc(f.x*s+s/2,f.y*s+s/2,s/2-1,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;gs.snakes.forEach(sn=>{if(!sn.alive)ctx.globalAlpha=.2;sn.body.forEach((b,i)=>{const isH=i===0;ctx.fillStyle=sn.color;ctx.shadowColor=isH?sn.color:'transparent';ctx.shadowBlur=isH?8:0;const p=isH?1:2;ctx.fillRect(b.x*s+p,b.y*s+p,s-p*2,s-p*2);});ctx.shadowBlur=0;if(sn.body[0]){ctx.fillStyle=sn.color;ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillText(sn.nickname.substring(0,6),sn.body[0].x*s+s/2,sn.body[0].y*s-2);}ctx.globalAlpha=1;});updateSnakeScore(gs);}
 function updateSnakeScore(gs){const e=document.getElementById('scoreboard');if(!e)return;e.innerHTML=gs.players.map(p=>'<div class=""score-item""><div style=""width:12px;height:12px;border-radius:2px;background:'+p.color+';box-shadow:0 0 6px '+p.color+';""></div><div><div class=""score-name"" style=""'+(p.alive?'':'text-decoration:line-through;opacity:.5;')+'"">'+(p.nickname||'')+'</div><div class=""score-value"" style=""color:'+p.color+'"">'+(p.score||0)+'</div></div></div>').join('');const ae=document.getElementById('aliveCount');if(ae)ae.textContent=gs.players.filter(p=>p.alive).length+' rắn còn sống';}
 const DK={'ArrowUp':'UP','w':'UP','W':'UP','ArrowDown':'DOWN','s':'DOWN','S':'DOWN','ArrowLeft':'LEFT','a':'LEFT','A':'LEFT','ArrowRight':'RIGHT','d':'RIGHT','D':'RIGHT'};
 document.addEventListener('keydown',e=>{const d=DK[e.key];if(d&&snakeState&&!snakeState.gameOver){e.preventDefault();socket.emit('snake:direction',{direction:d});}});
-(window._gameStartHandlers=window._gameStartHandlers||[]).push(({gameType,gameState})=>{if(gameType!=='snake')return;document.getElementById('lobbyArea').classList.add('hidden');document.getElementById('gameArea').classList.remove('hidden');document.getElementById('joinArea').classList.add('hidden');initSnakeCanvas(gameState.gridSize);renderSnake(gameState);showToast('🐍 WASD để di chuyển','info',3000);});
+// Touch swipe
+let _stx=0,_sty=0;
+document.addEventListener('touchstart',e=>{_stx=e.touches[0].clientX;_sty=e.touches[0].clientY;},{passive:true});
+document.addEventListener('touchend',e=>{
+  if(!snakeState||snakeState.gameOver)return;
+  const dx=e.changedTouches[0].clientX-_stx,dy=e.changedTouches[0].clientY-_sty;
+  if(Math.abs(dx)<20&&Math.abs(dy)<20)return;
+  let dir;
+  if(Math.abs(dx)>Math.abs(dy))dir=dx>0?'RIGHT':'LEFT';
+  else dir=dy>0?'DOWN':'UP';
+  socket.emit('snake:direction',{direction:dir});
+},{passive:true});
+function _snakeDpad(dir){if(snakeState&&!snakeState.gameOver)socket.emit('snake:direction',{direction:dir});}
+(window._gameStartHandlers=window._gameStartHandlers||[]).push(({gameType,gameState})=>{
+  if(gameType!=='snake')return;
+  document.getElementById('lobbyArea').classList.add('hidden');
+  document.getElementById('gameArea').classList.remove('hidden');
+  document.getElementById('joinArea').classList.add('hidden');
+  initSnakeCanvas(gameState.gridSize);renderSnake(gameState);
+  // Create D-pad
+  let dp=document.getElementById('snakeDpad');
+  if(!dp){dp=document.createElement('div');dp.id='snakeDpad';dp.className='touch-dpad';
+  dp.innerHTML='<div class=""touch-dpad-row""><div class=""touch-btn"" ontouchstart=""_snakeDpad('UP')"">▲</div></div><div class=""touch-dpad-row""><div class=""touch-btn"" ontouchstart=""_snakeDpad('LEFT')"">◀</div><div class=""touch-btn"" style=""opacity:.2"">·</div><div class=""touch-btn"" ontouchstart=""_snakeDpad('RIGHT')"">▶</div></div><div class=""touch-dpad-row""><div class=""touch-btn"" ontouchstart=""_snakeDpad('DOWN')"">▼</div></div>';
+  document.body.appendChild(dp);}
+  dp.style.display='block';
+  const isMobile=window.innerWidth<=768;
+  showToast(isMobile?'🐍 Vuốt hoặc dùng D-pad':'🐍 WASD để di chuyển','info',3000);
+});
 socket.on('snake:tick',gs=>renderSnake(gs));
 socket.on('game:over',({winnerId,winnerNickname,players})=>showGameOver(winnerId,winnerNickname,players));
-socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('hidden');document.getElementById('lobbyArea').classList.remove('hidden');const o=document.getElementById('gameOverOverlay');if(o)o.classList.add('hidden');snakeState=null;});";
+socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('hidden');document.getElementById('lobbyArea').classList.remove('hidden');const o=document.getElementById('gameOverOverlay');if(o)o.classList.add('hidden');snakeState=null;const dp=document.getElementById('snakeDpad');if(dp)dp.style.display='none';});";
 
     private const string PongJS = @"
 let pongCanvas,pongCtx,pongState=null;const keysDown=new Set();
-function initPongCanvas(w,h){pongCanvas=document.getElementById('pongCanvas');pongCanvas.width=w;pongCanvas.height=h;pongCtx=pongCanvas.getContext('2d');}
+function initPongCanvas(w,h){
+  pongCanvas=document.getElementById('pongCanvas');
+  pongCanvas.width=w;pongCanvas.height=h;
+  pongCtx=pongCanvas.getContext('2d');
+  const maxW=window.innerWidth*0.98, maxH=window.innerHeight*0.5;
+  const ratio=Math.min(maxW/w,maxH/h,1);
+  pongCanvas.style.width=(w*ratio)+'px';pongCanvas.style.height=(h*ratio)+'px';
+  window.onresize=()=>{if(!pongCanvas)return;const mw=window.innerWidth*0.98,mh=window.innerHeight*0.5;const r=Math.min(mw/w,mh/h,1);pongCanvas.style.width=(w*r)+'px';pongCanvas.style.height=(h*r)+'px';};
+}
 function renderPong(gs){pongState=gs;const ctx=pongCtx,W=pongCanvas.width,H=pongCanvas.height;ctx.fillStyle='#080810';ctx.fillRect(0,0,W,H);ctx.setLineDash([8,8]);ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke();ctx.setLineDash([]);Object.entries(gs.paddles).forEach(([id,p])=>{const me=id===window.currentPlayer?.id;ctx.fillStyle=me?'#00ff88':'#ff4466';ctx.shadowColor=me?'#00ff88':'#ff4466';ctx.shadowBlur=10;ctx.fillRect(p.x,p.y,p.w,p.h);ctx.shadowBlur=0;ctx.fillStyle=me?'#00ff88':'#ff4466';ctx.font='bold 11px monospace';ctx.textAlign='center';const nx=p.side==='left'?p.x+p.w+30:p.x-30;ctx.fillText(p.nickname.substring(0,8),nx,p.y+p.h/2+4);});const b=gs.ball;ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=12;ctx.fillRect(b.x,b.y,b.size,b.size);ctx.shadowBlur=0;if(gs.players){ctx.font='bold 46px monospace';ctx.fillStyle='rgba(255,255,255,.5)';ctx.textAlign='center';const lp=gs.players.find(p=>p.side==='left'),rp=gs.players.find(p=>p.side==='right');if(lp)ctx.fillText(lp.score,W/4,68);if(rp)ctx.fillText(rp.score,W*3/4,68);}}
 document.addEventListener('keydown',e=>{if(!pongState||pongState.gameOver)return;if(['w','W','s','S','ArrowUp','ArrowDown'].includes(e.key))e.preventDefault();if(!keysDown.has(e.key)){keysDown.add(e.key);updatePaddle();}});
 document.addEventListener('keyup',e=>{keysDown.delete(e.key);updatePaddle();});
 function updatePaddle(){const id=window.currentPlayer?.id;if(!id||!pongState?.paddles[id])return;const side=pongState.paddles[id]?.side;let dir=null;if(side==='left'){if(keysDown.has('w')||keysDown.has('W'))dir='up';else if(keysDown.has('s')||keysDown.has('S'))dir='down';}else{if(keysDown.has('ArrowUp'))dir='up';else if(keysDown.has('ArrowDown'))dir='down';}socket.emit('pong:paddle',{direction:dir});}
-(window._gameStartHandlers=window._gameStartHandlers||[]).push(({gameType,gameState})=>{if(gameType!=='pong')return;document.getElementById('lobbyArea').classList.add('hidden');document.getElementById('gameArea').classList.remove('hidden');document.getElementById('joinArea').classList.add('hidden');initPongCanvas(gameState.width,gameState.height);const myId=window.currentPlayer?.id;if(myId&&gameState.paddles[myId]){const side=gameState.paddles[myId].side,h=document.getElementById('pongHint');if(h){h.textContent=side==='left'?'🟢 Bạn: bên TRÁI | W/S':'🔴 Bạn: bên PHẢI | ↑/↓';h.style.color=side==='left'?'var(--ac)':'var(--ac2)';}}renderPong(gameState);});
+(window._gameStartHandlers=window._gameStartHandlers||[]).push(({gameType,gameState})=>{
+  if(gameType!=='pong')return;
+  document.getElementById('lobbyArea').classList.add('hidden');
+  document.getElementById('gameArea').classList.remove('hidden');
+  document.getElementById('joinArea').classList.add('hidden');
+  initPongCanvas(gameState.width,gameState.height);
+  const myId=window.currentPlayer?.id;
+  if(myId&&gameState.paddles[myId]){const side=gameState.paddles[myId].side,h=document.getElementById('pongHint');
+    if(h){const isMob=window.innerWidth<=768;h.textContent=side==='left'?(isMob?'🟢 Bạn: TRÁI | Chạm nửa trái màn hình':'🟢 Bạn: bên TRÁI | W/S'):(isMob?'🔴 Bạn: PHẢI | Chạm nửa phải màn hình':'🔴 Bạn: bên PHẢI | ↑/↓');h.style.color=side==='left'?'var(--ac)':'var(--ac2)';}}
+  renderPong(gameState);
+  if(window._makePongTouchArea){window._makePongTouchArea();const pa=document.getElementById('pongTouchArea');if(pa)pa.style.display='block';}
+});
+// Touch paddle control
+let _pongTouchDir=null;
+function _setPongTouch(dir){_pongTouchDir=dir;socket.emit('pong:paddle',{direction:dir});}
+function _clearPongTouch(){_pongTouchDir=null;socket.emit('pong:paddle',{direction:null});}
+(function(){
+  function makePaddleArea(){
+    let area=document.getElementById('pongTouchArea');
+    if(area)return;
+    area=document.createElement('div');area.id='pongTouchArea';area.className='touch-paddle-area';
+    // Left half
+    const L=document.createElement('div');L.className='touch-paddle-half';L.style.left='0';
+    L.innerHTML='<div class=""touch-paddle-up"">▲</div><div class=""touch-paddle-down"">▼</div>';
+    let lDir=null;
+    L.addEventListener('touchstart',e=>{e.preventDefault();const r=L.getBoundingClientRect();lDir=e.touches[0].clientY<r.top+r.height/2?'up':'down';_setPongTouch(lDir);},{passive:false});
+    L.addEventListener('touchmove',e=>{e.preventDefault();const r=L.getBoundingClientRect();const d=e.touches[0].clientY<r.top+r.height/2?'up':'down';if(d!==lDir){lDir=d;_setPongTouch(d);}},{passive:false});
+    L.addEventListener('touchend',()=>{lDir=null;_clearPongTouch();});
+    // Right half
+    const R=document.createElement('div');R.className='touch-paddle-half';R.style.right='0';
+    R.innerHTML='<div class=""touch-paddle-up"">▲</div><div class=""touch-paddle-down"">▼</div>';
+    let rDir=null;
+    R.addEventListener('touchstart',e=>{e.preventDefault();const r=R.getBoundingClientRect();rDir=e.touches[0].clientY<r.top+r.height/2?'up':'down';_setPongTouch(rDir);},{passive:false});
+    R.addEventListener('touchmove',e=>{e.preventDefault();const r=R.getBoundingClientRect();const d=e.touches[0].clientY<r.top+r.height/2?'up':'down';if(d!==rDir){rDir=d;_setPongTouch(d);}},{passive:false});
+    R.addEventListener('touchend',()=>{rDir=null;_clearPongTouch();});
+    area.appendChild(L);area.appendChild(R);document.body.appendChild(area);
+  }
+  window._makePongTouchArea=makePaddleArea;
+})();
 socket.on('pong:tick',gs=>renderPong(gs));
 socket.on('game:over',({winnerId,winnerNickname,players})=>showGameOver(winnerId,winnerNickname,players));
-socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('hidden');document.getElementById('lobbyArea').classList.remove('hidden');const o=document.getElementById('gameOverOverlay');if(o)o.classList.add('hidden');pongState=null;keysDown.clear();});";
+socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('hidden');document.getElementById('lobbyArea').classList.remove('hidden');const o=document.getElementById('gameOverOverlay');if(o)o.classList.add('hidden');pongState=null;keysDown.clear();const pa=document.getElementById('pongTouchArea');if(pa)pa.style.display='none';});";
 
     private const string ChessJS = @"
 // ── Chess Canvas Renderer ─────────────────────────────────────
@@ -619,6 +732,7 @@ socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('h
     <div style=""font-size:.78rem;color:var(--dim);margin-bottom:12px;"">{desc}</div>
     <div style=""display:flex;flex-direction:column;gap:11px;"">
       <button id=""quickPlayBtn"" class=""btn btn-primary"" style=""width:100%;justify-content:center;padding:12px;"">⚡ Quick Play</button>
+      <button id=""vsBotBtn"" class=""btn btn-secondary"" style=""width:100%;justify-content:center;padding:12px;border-color:#cc44ff;color:#cc44ff;"">🤖 Play vs Bot</button>
       <div style=""display:flex;gap:7px;"">
         <input type=""text"" id=""joinRoomInput"" class=""input-field"" placeholder=""Mã phòng..."" maxlength=""6"" style=""flex:1;text-transform:uppercase;letter-spacing:.2em;font-family:var(--fd);"">
         <button id=""joinRoomBtn"" class=""btn btn-secondary"">Vào</button>
@@ -651,7 +765,7 @@ socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('h
     // ══════════════════════════════════════
     //  PUBLIC PAGES
     // ══════════════════════════════════════
-    public static string Index => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1"">
+    public static string Index => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"">
 <title>🎮 Multiplayer Games Hub</title><style>{CSS}</style></head><body>
 <header class=""hub-header"">
   <a href=""/"" class=""hub-logo"">GAME<span>HUB</span></a>
@@ -695,7 +809,7 @@ socket.on('stats:online',counts=>{{document.getElementById('online-tictactoe').t
 document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=>{{if(!localStorage.getItem('playerNickname')){{e.preventDefault();showToast('Vui lòng nhập nickname trước!','error');ni.focus();}}}}));
 </script></body></html>";
 
-    public static string TicTacToe => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>Tic-Tac-Toe | GameHub</title><style>{CSS}</style></head><body>
+    public static string TicTacToe => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Tic-Tac-Toe | GameHub</title><style>{CSS}</style></head><body>
 {Header}
 {JoinPanel("⭕", "TIC-TAC-TOE", "var(--ac)", "tictactoe", "Click ô trống để đánh • 3 liên tiếp thắng")}
 {LobbyPanel("⭕", "TIC-TAC-TOE", "var(--ac)", 2)}
@@ -707,7 +821,7 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
 {BaseScripts(TttJS, "tictactoe")}
 </body></html>";
 
-    public static string Snake => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>Snake Battle | GameHub</title><style>{CSS}</style></head><body>
+    public static string Snake => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Snake Battle | GameHub</title><style>{CSS}</style></head><body>
 {Header}
 {JoinPanel("🐍", "SNAKE BATTLE", "var(--ac4)", "snake", "WASD hoặc phím mũi tên • Ăn mồi • Last snake standing")}
 {LobbyPanel("🐍", "SNAKE BATTLE", "var(--ac4)", 4)}
@@ -719,7 +833,7 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
 {BaseScripts(SnakeJS, "snake")}
 </body></html>";
 
-    public static string Pong => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>Pong | GameHub</title><style>{CSS}</style></head><body>
+    public static string Pong => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Pong | GameHub</title><style>{CSS}</style></head><body>
 {Header}
 {JoinPanel("🏓", "PONG", "var(--ac3)", "pong", "Trái: W/S | Phải: ↑/↓ | First to 5 wins")}
 {LobbyPanel("🏓", "PONG", "var(--ac3)", 2)}
@@ -732,7 +846,7 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
 {BaseScripts(PongJS, "pong")}
 </body></html>";
 
-        public static string Chess => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>Chess | GameHub</title><style>{CSS}
+        public static string Chess => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Chess | GameHub</title><style>{CSS}
 .chess-info{{display:flex;flex-direction:column;gap:10px;min-width:180px;}}
 .chess-timer-box{{background:var(--bg2);border:1px solid var(--br);border-radius:8px;padding:10px 14px;font-family:var(--fd);font-size:1.4rem;text-align:center;}}
 .chess-timer-box.active{{border-color:var(--ac);color:var(--ac);box-shadow:var(--glow);}}
@@ -747,19 +861,19 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
 <div id=""gameArea"" class=""hidden"">
   <div class=""game-header"">
     <div><div id=""myColorLabel"" style=""font-weight:700;color:#cc44ff;""></div><div id=""chessTurn"" class=""turn-indicator""></div><div id=""chessStatusMsg"" style=""color:var(--ac2);font-weight:700;font-size:.9rem;""></div></div>
-    <button id=""resignBtn"" class=""btn btn-danger"" style=""padding:6px 14px;font-size:.82rem;"">🏳 Bo cuoc</button>
+    <button id=""resignBtn"" class=""btn btn-danger"" style=""padding:8px 14px;font-size:.82rem;"">🏳 Resign</button>
   </div>
-  <div style=""display:flex;gap:18px;flex-wrap:wrap;justify-content:center;padding:10px 0;"">
-    <div>
-      <div style=""font-size:.75rem;color:var(--dim);margin-bottom:5px;"" id=""oppTimeLabel"">Doi thu</div>
-      <div class=""chess-timer-box"" id=""oppTime"">10:00</div>
-      <div id=""chessBoardWrap"" style=""width:min(560px,90vw);margin:8px 0;""></div>
-      <div style=""font-size:.75rem;color:var(--dim);margin-bottom:5px;"">Ban</div>
-      <div class=""chess-timer-box active"" id=""myTime"">10:00</div>
+  <div style=""display:flex;gap:14px;flex-wrap:wrap;justify-content:center;padding:10px 0;align-items:flex-start;"">
+    <div style=""display:flex;flex-direction:column;align-items:center;"">
+      <div style=""font-size:.75rem;color:var(--dim);margin-bottom:5px;align-self:flex-start;"" id=""oppTimeLabel"">Opponent</div>
+      <div class=""chess-timer-box"" id=""oppTime"" style=""width:min(560px,92vw);text-align:center;"">10:00</div>
+      <div id=""chessBoardWrap"" style=""width:min(560px,92vw);margin:6px 0;""></div>
+      <div style=""font-size:.75rem;color:var(--dim);margin-bottom:5px;align-self:flex-start;"">You</div>
+      <div class=""chess-timer-box active"" id=""myTime"" style=""width:min(560px,92vw);text-align:center;"">10:00</div>
     </div>
     <div class=""chess-info"">
       <div style=""background:var(--bg2);border:1px solid var(--br);border-radius:8px;padding:12px;"">
-        <div style=""font-size:.73rem;color:var(--dim);margin-bottom:8px;font-family:var(--fd);"">LICH SU NUOC DI</div>
+        <div style=""font-size:.73rem;color:var(--dim);margin-bottom:8px;font-family:var(--fd);"">MOVE HISTORY</div>
         <div id=""moveHistory"" style=""max-height:300px;overflow-y:auto;word-break:break-all;line-height:1.8;""></div>
       </div>
     </div>
@@ -775,7 +889,7 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
 {BaseScripts(ChessJS, "chess")}
 </body></html>";
 
-    public static string MathQuiz => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>Quick Math | GameHub</title><style>{CSS}</style></head><body>
+    public static string MathQuiz => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Quick Math | GameHub</title><style>{CSS}</style></head><body>
 {Header}
 {JoinPanel("🧮", "QUICK MATH", "var(--ac2)", "mathquiz", "Trả lời nhanh nhất • Đúng đầu tiên +3 điểm • 10 câu/ván")}
 {LobbyPanel("🧮", "QUICK MATH", "var(--ac2)", 4)}

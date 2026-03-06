@@ -48,6 +48,26 @@ public class GameHubSignalR : Hub
         await Clients.All.SendAsync("stats:online", _rm.GetOnlineCountByGame());
     }
 
+    // ── Play vs Bot ───────────────────────────────────────────
+    public async Task RoomPlayVsBot(string gameType)
+    {
+        if (!RoomManager.GameConfigs.TryGetValue(gameType, out var cfg)) return;
+        var room = _rm.CreateRoom(gameType, cfg.MaxPlayers, false);
+        room.IsVsBot = true;
+        var (err,_) = _rm.JoinRoom(Context.ConnectionId, room.Code);
+        if (err!=null){await Clients.Caller.SendAsync("room:error",new{message=err});return;}
+        _rm.AddBotToRoom(room);
+        await Groups.AddToGroupAsync(Context.ConnectionId, room.Code);
+        await Clients.Caller.SendAsync("room:created", new{roomCode=room.Code});
+        await Clients.Group(room.Code).SendAsync("room:updated", _rm.GetRoomInfo(room));
+        room.Players.ForEach(p=>p.IsReady=true);
+        room.ReadyPlayers.Add(Context.ConnectionId);
+        room.ReadyPlayers.Add(BotAI.BOT_ID);
+        var hub=_hubContext;var rm=_rm;var log=_logger;
+        _ = Task.Run(async()=>await StartCountdownBg(room,hub,rm,log));
+        await Clients.All.SendAsync("stats:online", _rm.GetOnlineCountByGame());
+    }
+
     public async Task RoomJoin(string roomCode)
     {
         if (!_rm.CheckRateLimit(Context.ConnectionId)) return;
@@ -111,6 +131,20 @@ public class GameHubSignalR : Hub
         await Clients.Group(room.Code).SendAsync("tictactoe:updated",new{gameState=newGs});
         if (evt=="win") await EndGameBg(room,winner!.Id,_hubContext,_rm,_logger);
         else if (evt=="draw") await EndGameBg(room,null,_hubContext,_rm,_logger);
+        else if (room.IsVsBot && newGs.CurrentTurn==BotAI.BOT_ID && !newGs.IsDraw && newGs.Winner==null)
+        { var hub2=_hubContext;var rm2=_rm;var log2=_logger; _ = Task.Run(async()=>{await Task.Delay(500);await TttBotMoveAsync(room,hub2,rm2,log2);}); }
+    }
+
+    private static async Task TttBotMoveAsync(Room room, IHubContext<GameHubSignalR> hub, RoomManager rm, ILogger log)
+    {
+        if (room.GameState is not TttGameState gs) return;
+        int cell = BotAI.TttBotMove(gs);
+        var (error,evt,newGs,winner) = TicTacToe.MakeMove(gs, BotAI.BOT_ID, cell);
+        if (error!=null) return;
+        room.GameState=newGs;
+        await hub.Clients.Group(room.Code).SendAsync("tictactoe:updated",new{gameState=newGs});
+        if (evt=="win") await EndGameBg(room,winner!.Id,hub,rm,log);
+        else if (evt=="draw") await EndGameBg(room,null,hub,rm,log);
     }
 
     // ── Snake ─────────────────────────────────────────────────
@@ -149,9 +183,31 @@ public class GameHubSignalR : Hub
         {
             var nextPlayer = newGs.Players.FirstOrDefault(p=>p.Side==newGs.CurrentTurn);
             var legalMoves = Chess.GetAllLegalMoves(newGs, newGs.CurrentTurn);
-            if (nextPlayer!=null) await Clients.Client(nextPlayer.Id).SendAsync("chess:legalMoves",new{moves=legalMoves});
+            if (nextPlayer!=null && nextPlayer.Id!=BotAI.BOT_ID)
+                await Clients.Client(nextPlayer.Id).SendAsync("chess:legalMoves",new{moves=legalMoves});
+            else if (room.IsVsBot && nextPlayer?.Id==BotAI.BOT_ID)
+            { var hub2=_hubContext;var rm2=_rm;var log2=_logger; _ = Task.Run(async()=>{await Task.Delay(800);await ChessBotMoveAsync(room,hub2,rm2,log2);}); }
         }
         else await EndGameBg(room,newGs.Winner,_hubContext,_rm,_logger);
+    }
+
+    private static async Task ChessBotMoveAsync(Room room, IHubContext<GameHubSignalR> hub, RoomManager rm, ILogger log)
+    {
+        if (room.GameState is not ChessGameState gs || gs.GameOver) return;
+        var (from, to, promo) = BotAI.ChessBotMove(gs);
+        if (from<0||to<0) return;
+        var (error,newGs,notation,isCheckmate,isCheck) = Chess.TryMove(gs, BotAI.BOT_ID, from, to, promo);
+        if (error!=null) return;
+        room.GameState=newGs;
+        await hub.Clients.Group(room.Code).SendAsync("chess:updated",new{gameState=newGs,lastMove=new{from,to},notation,isCheck,isCheckmate});
+        if (!newGs.GameOver)
+        {
+            var nextPlayer=newGs.Players.FirstOrDefault(p=>p.Side==newGs.CurrentTurn);
+            var legalMoves=Chess.GetAllLegalMoves(newGs,newGs.CurrentTurn);
+            if(nextPlayer!=null&&nextPlayer.Id!=BotAI.BOT_ID)
+                await hub.Clients.Client(nextPlayer.Id).SendAsync("chess:legalMoves",new{moves=legalMoves});
+        }
+        else await EndGameBg(room,newGs.Winner,hub,rm,log);
     }
 
     public async Task ChessGetLegalMoves(int square)
@@ -267,11 +323,13 @@ public class GameHubSignalR : Hub
             var gs=Chess.CreateGameState(room.Players); room.GameState=gs;
             await hub.Clients.Group(room.Code).SendAsync("game:start",new{gameType="chess",gameState=gs});
             var whitePlayer=gs.Players.FirstOrDefault(p=>p.Side=="white");
-            if (whitePlayer!=null)
+            if (whitePlayer!=null&&whitePlayer.Id!=BotAI.BOT_ID)
             {
                 var whiteMoves=Chess.GetAllLegalMoves(gs,"white");
                 await hub.Clients.Client(whitePlayer.Id).SendAsync("chess:legalMoves",new{moves=whiteMoves});
             }
+            else if(room.IsVsBot&&whitePlayer?.Id==BotAI.BOT_ID)
+            { var hub3=hub;var rm3=rm;var log3=logger; _ = Task.Run(async()=>{await Task.Delay(1000);await ChessBotMoveAsync(room,hub3,rm3,log3);}); }
             _ = Task.Run(async()=>await RunChessTimer(room,gs,hub,rm,logger));
         }
         else if (room.GameType=="mathquiz")
@@ -286,14 +344,19 @@ public class GameHubSignalR : Hub
     private static async Task RunSnakeLoop(Room room, SnakeGameState gs, IHubContext<GameHubSignalR> hub, RoomManager rm, ILogger logger)
     {
         var cts=new CancellationTokenSource(); lock(LoopLock){GameLoops[room.Code]=cts;}
-        try { while(!cts.IsCancellationRequested&&room.State=="PLAYING"){await Task.Delay(Snake.TickRate);if(cts.IsCancellationRequested||room.State!="PLAYING")break;Snake.Tick(gs);await hub.Clients.Group(room.Code).SendAsync("snake:tick",gs);if(gs.GameOver){StopLoop(room.Code);await EndGameBg(room,gs.Winner,hub,rm,logger);break;}} }
+        try { while(!cts.IsCancellationRequested&&room.State=="PLAYING"){await Task.Delay(Snake.TickRate);if(cts.IsCancellationRequested||room.State!="PLAYING")break;
+            // Bot AI: update direction each tick
+            if(room.IsVsBot){var botDir=BotAI.SnakeBotDirection(gs);Snake.SetDirection(gs,BotAI.BOT_ID,botDir);}
+            Snake.Tick(gs);await hub.Clients.Group(room.Code).SendAsync("snake:tick",gs);if(gs.GameOver){StopLoop(room.Code);await EndGameBg(room,gs.Winner,hub,rm,logger);break;}} }
         catch(Exception ex){logger.LogError(ex,"Snake {Code}",room.Code);}
     }
 
     private static async Task RunPongLoop(Room room, PongGameState gs, IHubContext<GameHubSignalR> hub, RoomManager rm, ILogger logger)
     {
         var cts=new CancellationTokenSource(); lock(LoopLock){GameLoops[room.Code]=cts;}
-        try { while(!cts.IsCancellationRequested&&room.State=="PLAYING"){await Task.Delay(Pong.TickRate);if(cts.IsCancellationRequested||room.State!="PLAYING")break;Pong.Tick(gs);await hub.Clients.Group(room.Code).SendAsync("pong:tick",gs);if(gs.GameOver){StopLoop(room.Code);await EndGameBg(room,gs.Winner,hub,rm,logger);break;}} }
+        try { while(!cts.IsCancellationRequested&&room.State=="PLAYING"){await Task.Delay(Pong.TickRate);if(cts.IsCancellationRequested||room.State!="PLAYING")break;
+            if(room.IsVsBot){var botDir=BotAI.PongBotDirection(gs);Pong.SetPaddleMoving(gs,BotAI.BOT_ID,botDir);}
+            Pong.Tick(gs);await hub.Clients.Group(room.Code).SendAsync("pong:tick",gs);if(gs.GameOver){StopLoop(room.Code);await EndGameBg(room,gs.Winner,hub,rm,logger);break;}} }
         catch(Exception ex){logger.LogError(ex,"Pong {Code}",room.Code);}
     }
 
@@ -338,6 +401,8 @@ public class GameHubSignalR : Hub
         MathQuiz.NextQuestion(gs);
         if(gs.GameOver){await EndGameBg(room,gs.Winner,hub,rm,logger);return;}
         await hub.Clients.Group(room.Code).SendAsync("mathquiz:question",new{question=gs.CurrentQuestion,questionIndex=gs.QuestionIndex,totalQuestions=gs.TotalQuestions,timeLeft=MathQuiz.TimePerQ});
+        // Bot answers after random delay
+        if(room.IsVsBot){ var (delay,ans)=BotAI.MathBotAnswer(gs); _ = Task.Run(async()=>{await Task.Delay(delay);if(room.State=="PLAYING"&&gs.Phase=="QUESTION"){var (v,c,all,ca)=MathQuiz.SubmitAnswer(gs,BotAI.BOT_ID,ans);if(v){await hub.Clients.Group(room.Code).SendAsync("mathquiz:answered",new{playerId=BotAI.BOT_ID,correct=c,correctAnswer=c?ca:(int?)null,players=gs.Players});if(all){StopLoop(room.Code+"_math");await Task.Delay(2000);if(room.State=="PLAYING")await SendNextQuestionBg(room,hub,rm,logger);}}}});}
         var cts=new CancellationTokenSource(); lock(LoopLock){GameLoops[room.Code+"_math"]=cts;}
         _ = Task.Run(async()=>
         {

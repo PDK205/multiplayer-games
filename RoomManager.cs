@@ -1,3 +1,4 @@
+using GameHub.Games;
 using GameHub.Models;
 
 namespace GameHub;
@@ -133,9 +134,15 @@ public class RoomManager
         foreach (var code in toRemove) _rooms.Remove(code);
     }
 
+    public void AddBotToRoom(Room room)
+    {
+        room.Players.Add(BotAI.MakeBotPlayer());
+    }
+
     public object GetRoomInfo(Room room) => new
     {
         code = room.Code, gameType = room.GameType, state = room.State,
-        players = room.Players, maxPlayers = room.MaxPlayers, readyCount = room.ReadyPlayers.Count
+        players = room.Players, maxPlayers = room.MaxPlayers, readyCount = room.ReadyPlayers.Count,
+        isVsBot = room.IsVsBot
     };
 }

@@ -292,6 +292,10 @@ public static class Chess
 
     // ── Core chess logic ──────────────────────────────────────
 
+    // Public wrapper for BotAI
+    public static void ExecuteMovePublic(ChessGameState gs, int from, int to, string? promotion)
+        => ExecuteMove(gs, from, to, promotion);
+
     private static void ExecuteMove(ChessGameState gs, int from, int to, string? promotion)
     {
         var board = gs.Board;
@@ -548,5 +552,257 @@ public static class MathQuiz
         var max=gs.Players.Max(p=>p.Score);
         gs.Winner=gs.Players.FirstOrDefault(p=>p.Score==max)?.Id;
         return gs;
+    }
+}
+
+// ══════════════════════════════════════════
+//  BOT AI - Tất cả 5 game
+// ══════════════════════════════════════════
+public static class BotAI
+{
+    public const string BOT_ID   = "BOT_AI_001";
+    public const string BOT_NAME = "🤖 Bot";
+    public const string BOT_COLOR= "#cc44ff";
+    private static readonly Random Rng = new();
+
+    // ── Tạo RoomPlayer cho Bot ────────────────────────────────
+    public static RoomPlayer MakeBotPlayer() => new()
+    {
+        Id = BOT_ID, Nickname = BOT_NAME, Color = BOT_COLOR, IsReady = true
+    };
+
+    // ══════════════════════════════════════
+    //  TIC-TAC-TOE  –  Minimax (bất bại)
+    // ══════════════════════════════════════
+    public static int TttBotMove(TttGameState gs)
+    {
+        // Bot always plays as 'O' (second player)
+        string botSymbol = gs.Players.FirstOrDefault(p => p.Id == BOT_ID)?.Symbol ?? "O";
+        string humanSymbol = botSymbol == "O" ? "X" : "O";
+
+        int bestScore = int.MinValue, bestCell = -1;
+        for (int i = 0; i < 9; i++)
+        {
+            if (gs.Board[i] != null) continue;
+            gs.Board[i] = botSymbol;
+            int score = TttMinimax(gs.Board, 0, false, botSymbol, humanSymbol);
+            gs.Board[i] = null;
+            if (score > bestScore) { bestScore = score; bestCell = i; }
+        }
+        return bestCell;
+    }
+
+    private static int TttMinimax(string?[] board, int depth, bool isMax, string bot, string human)
+    {
+        var (_, winner) = TicTacToe.CheckWinner(board);
+        if (winner == bot)   return 10 - depth;
+        if (winner == human) return depth - 10;
+        if (board.All(c => c != null)) return 0;
+
+        if (isMax)
+        {
+            int best = int.MinValue;
+            for (int i = 0; i < 9; i++) {
+                if (board[i] != null) continue;
+                board[i] = bot;
+                best = Math.Max(best, TttMinimax(board, depth+1, false, bot, human));
+                board[i] = null;
+            }
+            return best;
+        }
+        else
+        {
+            int best = int.MaxValue;
+            for (int i = 0; i < 9; i++) {
+                if (board[i] != null) continue;
+                board[i] = human;
+                best = Math.Min(best, TttMinimax(board, depth+1, true, bot, human));
+                board[i] = null;
+            }
+            return best;
+        }
+    }
+
+    // ══════════════════════════════════════
+    //  SNAKE  –  Pathfinding (BFS to food)
+    // ══════════════════════════════════════
+    public static string SnakeBotDirection(SnakeGameState gs)
+    {
+        var bot = gs.Snakes.FirstOrDefault(s => s.Id == BOT_ID);
+        if (bot == null || !bot.Alive || bot.Body.Count == 0) return "RIGHT";
+
+        var head = bot.Body[0];
+        var food = gs.Food;
+        int gs2 = gs.GridSize;
+
+        // Build occupied set (all snake bodies)
+        var occupied = new HashSet<(int,int)>();
+        foreach (var s in gs.Snakes)
+            foreach (var b in s.Body) occupied.Add((b.X, b.Y));
+
+        // BFS to food
+        var dirs = new[] { ("UP",0,-1), ("DOWN",0,1), ("LEFT",-1,0), ("RIGHT",1,0) };
+        var queue = new Queue<(int x, int y, string dir)>();
+        var visited = new HashSet<(int,int)> { (head.X, head.Y) };
+
+        foreach (var (d, dx, dy) in dirs)
+        {
+            int nx = head.X+dx, ny = head.Y+dy;
+            if (nx<0||nx>=gs2||ny<0||ny>=gs2) continue;
+            if (occupied.Contains((nx,ny))) continue;
+            queue.Enqueue((nx, ny, d));
+            visited.Add((nx, ny));
+        }
+
+        while (queue.Count > 0)
+        {
+            var (x, y, firstDir) = queue.Dequeue();
+            if (x == food.X && y == food.Y) return firstDir;
+            foreach (var (_, dx, dy) in dirs)
+            {
+                int nx = x+dx, ny = y+dy;
+                if (nx<0||nx>=gs2||ny<0||ny>=gs2) continue;
+                if (visited.Contains((nx,ny))||occupied.Contains((nx,ny))) continue;
+                visited.Add((nx,ny));
+                queue.Enqueue((nx, ny, firstDir));
+            }
+        }
+
+        // Fallback: pick any safe direction
+        foreach (var (d, dx, dy) in dirs)
+        {
+            int nx = head.X+dx, ny = head.Y+dy;
+            if (nx>=0&&nx<gs2&&ny>=0&&ny<gs2&&!occupied.Contains((nx,ny)))
+                return d;
+        }
+        return bot.Direction; // stay same if trapped
+    }
+
+    // ══════════════════════════════════════
+    //  PONG  –  Bot tracks ball
+    // ══════════════════════════════════════
+    public static string? PongBotDirection(PongGameState gs)
+    {
+        if (!gs.Paddles.TryGetValue(BOT_ID, out var paddle)) return null;
+        var ball = gs.Ball;
+        double paddleMid = paddle.Y + Pong.PH / 2.0;
+        double ballMid   = ball.Y + Pong.BS / 2.0;
+        double diff = ballMid - paddleMid;
+        // Dead zone ±10px to avoid jitter
+        if (diff < -10) return "up";
+        if (diff >  10) return "down";
+        return null;
+    }
+
+    // ══════════════════════════════════════
+    //  CHESS  –  Minimax depth-3 + eval
+    // ══════════════════════════════════════
+    private static readonly Dictionary<char,int> PieceVal = new()
+    { {'P',100},{'N',320},{'B',330},{'R',500},{'Q',900},{'K',20000} };
+
+    public static (int from, int to, string? promo) ChessBotMove(ChessGameState gs)
+    {
+        string botSide = gs.Players.FirstOrDefault(p => p.Id == BOT_ID)?.Side ?? "black";
+        var (from, to, promo, _) = ChessAlphaBeta(gs, 3, int.MinValue, int.MaxValue, true, botSide);
+        return (from, to, promo);
+    }
+
+    private static (int from, int to, string? promo, int score) ChessAlphaBeta(
+        ChessGameState gs, int depth, int alpha, int beta, bool maximizing, string botSide)
+    {
+        if (depth == 0 || gs.GameOver)
+            return (-1, -1, null, ChessEval(gs, botSide));
+
+        var allMoves = Chess.GetAllLegalMoves(gs, gs.CurrentTurn);
+        if (allMoves.Count == 0)
+            return (-1, -1, null, ChessEval(gs, botSide));
+
+        int bestFrom=-1, bestTo=-1; string? bestPromo=null;
+        // Flatten & shuffle for variety
+        var moveList = allMoves.SelectMany(kv => kv.Value.Select(t => (kv.Key, t))).ToList();
+        moveList = moveList.OrderBy(_ => Rng.Next()).ToList(); // shuffle
+
+        if (maximizing)
+        {
+            int best = int.MinValue;
+            foreach (var (f, t) in moveList)
+            {
+                var clone = ChessClone(gs);
+                string? promo = null;
+                if (clone.Board[f]?[1] == 'P' && (t < 8 || t >= 56)) promo = "Q";
+                Chess.ExecuteMovePublic(clone, f, t, promo);
+                clone.CurrentTurn = clone.CurrentTurn == "white" ? "black" : "white";
+                var (_, _, _, sc) = ChessAlphaBeta(clone, depth-1, alpha, beta, false, botSide);
+                if (sc > best) { best=sc; bestFrom=f; bestTo=t; bestPromo=promo; }
+                alpha = Math.Max(alpha, best);
+                if (beta <= alpha) break;
+            }
+            return (bestFrom, bestTo, bestPromo, best);
+        }
+        else
+        {
+            int best = int.MaxValue;
+            foreach (var (f, t) in moveList)
+            {
+                var clone = ChessClone(gs);
+                string? promo = null;
+                if (clone.Board[f]?[1] == 'P' && (t < 8 || t >= 56)) promo = "Q";
+                Chess.ExecuteMovePublic(clone, f, t, promo);
+                clone.CurrentTurn = clone.CurrentTurn == "white" ? "black" : "white";
+                var (_, _, _, sc) = ChessAlphaBeta(clone, depth-1, alpha, beta, true, botSide);
+                if (sc < best) { best=sc; bestFrom=f; bestTo=t; bestPromo=promo; }
+                beta = Math.Min(beta, best);
+                if (beta <= alpha) break;
+            }
+            return (bestFrom, bestTo, bestPromo, best);
+        }
+    }
+
+    private static int ChessEval(ChessGameState gs, string botSide)
+    {
+        if (gs.GameOver)
+        {
+            if (gs.Winner == null) return 0;
+            var winPlayer = gs.Players.FirstOrDefault(p => p.Id == gs.Winner);
+            return winPlayer?.Side == botSide ? 100000 : -100000;
+        }
+        int score = 0;
+        foreach (var p in gs.Board)
+        {
+            if (p == null) continue;
+            int val = PieceVal[p[1]];
+            score += p[0] == (botSide=="white"?'w':'b') ? val : -val;
+        }
+        return score;
+    }
+
+    private static ChessGameState ChessClone(ChessGameState gs) => new()
+    {
+        Board = (string?[])gs.Board.Clone(),
+        CurrentTurn = gs.CurrentTurn,
+        Players = gs.Players,
+        GameOver = gs.GameOver,
+        Winner = gs.Winner,
+        EnPassantTarget = gs.EnPassantTarget,
+        WhiteCanCastleK = gs.WhiteCanCastleK, WhiteCanCastleQ = gs.WhiteCanCastleQ,
+        BlackCanCastleK = gs.BlackCanCastleK, BlackCanCastleQ = gs.BlackCanCastleQ,
+        WhiteTime = gs.WhiteTime, BlackTime = gs.BlackTime,
+        LastMoveAt = gs.LastMoveAt,
+        MoveHistory = new List<string>(gs.MoveHistory),
+        MoveCount = gs.MoveCount,
+    };
+
+    // ══════════════════════════════════════
+    //  MATH QUIZ  –  Bot trả lời ngẫu nhiên
+    // ══════════════════════════════════════
+    public static (int delay, string answer) MathBotAnswer(MathGameState gs)
+    {
+        // Bot trả lời sau 1-5 giây, đúng 70% trả lời đúng
+        int delayMs = Rng.Next(1000, 5000);
+        bool correct = Rng.NextDouble() < 0.70;
+        string answer = correct
+            ? gs.CorrectAnswer?.ToString() ?? "0"
+            : (gs.CorrectAnswer.GetValueOrDefault() + Rng.Next(-5,6)).ToString();
+        return (delayMs, answer);
     }
 }
