@@ -471,274 +471,40 @@ function initChessCanvas(){
   chessCtx=chessCanvas.getContext('2d');
 }
 
-// ── Chess Pieces: Beautiful canvas-native drawing ──
+// ── Chess Pieces ──
 
 function drawPiece(ctx, pc, cx, cy, C) {
   var isWhite = pc[0] === 'w';
   var type = pc[1];
-  var s = C * 0.82; // scale factor
+  var symbols = { K:'♚', Q:'♛', R:'♜', B:'♝', N:'♞', P:'♟' };
+  var sym = symbols[type] || '♟';
+
   ctx.save();
-  ctx.translate(cx, cy);
+  ctx.shadowColor   = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur    = C * 0.08;
+  ctx.shadowOffsetX = C * 0.02;
+  ctx.shadowOffsetY = C * 0.04;
 
-  // Colors
-  var fillMain   = isWhite ? '#fffdf0' : '#1c1c2e';
-  var fillMid    = isWhite ? '#e8d5b0' : '#2e2e45';
-  var fillDark   = isWhite ? '#c8a96e' : '#0a0a18';
-  var strokeCol  = isWhite ? '#8a6030' : '#c8b8e8';
-  var hiCol      = isWhite ? 'rgba(255,255,255,0.55)' : 'rgba(160,140,220,0.35)';
-  var sw = Math.max(1, s * 0.028);
+  var fontSize = Math.floor(C * 0.72);
+  ctx.font      = fontSize + 'px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
 
-  function applyBase(grad) {
-    ctx.fillStyle = grad;
-    ctx.strokeStyle = strokeCol;
-    ctx.lineWidth = sw;
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-  }
+  // Draw outline for contrast
+  ctx.strokeStyle = isWhite ? '#5a3a10' : '#ffffff';
+  ctx.lineWidth   = Math.max(1.5, C * 0.04);
+  ctx.lineJoin    = 'round';
+  ctx.strokeText(sym, cx, cy + C * 0.04);
 
-  function radGrad(x, y, r0, r1, c0, c1) {
-    var g = ctx.createRadialGradient(x, y, r0, x, y, r1);
-    g.addColorStop(0, c0); g.addColorStop(1, c1); return g;
-  }
-  function linGrad(x0, y0, x1, y1, c0, c1) {
-    var g = ctx.createLinearGradient(x0, y0, x1, y1);
-    g.addColorStop(0, c0); g.addColorStop(1, c1); return g;
-  }
-
-  // Drop shadow
-  ctx.shadowColor = 'rgba(0,0,0,0.55)';
-  ctx.shadowBlur  = s * 0.13;
-  ctx.shadowOffsetX = s * 0.035;
-  ctx.shadowOffsetY = s * 0.06;
-
-  var h = s * 0.5; // half-size ref
-
-  if (type === 'P') {
-    // ── PAWN ──
-    var bw = s*0.42, bh = s*0.1, bx = -bw/2, by = h-bh;
-    // Base
-    ctx.beginPath();
-    ctx.ellipse(0, by+bh*0.5, bw/2, bh*0.7, 0, 0, Math.PI*2);
-    applyBase(linGrad(bx,by,bx,by+bh,fillMid,fillDark));
-    ctx.fill(); ctx.stroke();
-    // Stem
-    var sw2=s*0.16, sh=s*0.26, sy=by-sh;
-    ctx.beginPath();
-    ctx.moveTo(-sw2/2, by); ctx.bezierCurveTo(-sw2/2,by-sh*0.3, -s*0.09,sy, 0,sy-s*0.04);
-    ctx.bezierCurveTo(s*0.09,sy, sw2/2,by-sh*0.3, sw2/2,by);
-    ctx.closePath();
-    applyBase(linGrad(0,by,0,sy,fillMid,fillMain));
-    ctx.fill(); ctx.stroke();
-    // Head ball
-    var hr=s*0.18;
-    ctx.beginPath();
-    ctx.arc(0, sy-s*0.04-hr*0.7, hr, 0, Math.PI*2);
-    applyBase(radGrad(-hr*0.3,-hr*0.3+sy-s*0.04-hr*0.7, hr*0.1, hr, fillMain, fillMid));
-    ctx.fill(); ctx.stroke();
-    // Highlight
-    ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
-    ctx.beginPath(); ctx.arc(-hr*0.28, sy-s*0.04-hr*0.7-hr*0.25, hr*0.32, 0, Math.PI*2);
-    ctx.fillStyle=hiCol; ctx.fill();
-
-  } else if (type === 'R') {
-    // ── ROOK ──
-    var bw=s*0.58, bh=s*0.1; var by=h-bh;
-    // Base
-    ctx.beginPath(); ctx.ellipse(0,by+bh*0.5,bw/2,bh*0.7,0,0,Math.PI*2);
-    applyBase(linGrad(-bw/2,by,bw/2,by+bh,fillMid,fillDark)); ctx.fill(); ctx.stroke();
-    // Column
-    var cw=s*0.34, ch=s*0.42, cx0=-cw/2, cy0=by-ch;
-    ctx.beginPath();
-    ctx.moveTo(cx0,by); ctx.lineTo(cx0*0.9,cy0+ch*0.1);
-    ctx.lineTo(cx0*0.9,cy0); ctx.lineTo(-cw/2,cy0);
-    ctx.lineTo(cw/2,cy0); ctx.lineTo(cw*0.45,cy0);
-    ctx.lineTo(cw*0.45,cy0+ch*0.1); ctx.lineTo(cw/2,by);
-    ctx.closePath();
-    applyBase(linGrad(0,by,0,cy0,fillMid,fillMain)); ctx.fill(); ctx.stroke();
-    // Battlements
-    var tw=s*0.46, th=s*0.12, ty=cy0-th, tx=-tw/2;
-    var tW=tw/5;
-    for(var i=0;i<5;i++){
-      if(i%2===0){
-        ctx.beginPath();
-        ctx.rect(tx+i*tW, ty, tW, th);
-        applyBase(linGrad(0,ty,0,ty+th,fillMain,fillMid)); ctx.fill(); ctx.stroke();
-      }
-    }
-    // Top platform
-    ctx.beginPath(); ctx.rect(tx, cy0, tw, s*0.04);
-    applyBase(linGrad(tx,cy0,tx+tw,cy0,fillMid,fillMain)); ctx.fill(); ctx.stroke();
-    // Highlight
-    ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
-    ctx.beginPath(); ctx.rect(cx0*0.9+s*0.02, cy0+s*0.03, s*0.05, ch*0.55);
-    ctx.fillStyle=hiCol; ctx.fill();
-
-  } else if (type === 'N') {
-    // ── KNIGHT ──
-    var bw=s*0.52, bh=s*0.1, by=h-bh;
-    ctx.beginPath(); ctx.ellipse(0,by+bh*0.5,bw/2,bh*0.7,0,0,Math.PI*2);
-    applyBase(linGrad(-bw/2,by,bw/2,by+bh,fillMid,fillDark)); ctx.fill(); ctx.stroke();
-    // Horse head - body
-    ctx.beginPath();
-    ctx.moveTo(-s*0.16, by);
-    ctx.bezierCurveTo(-s*0.24,by-s*0.15, -s*0.26,by-s*0.3, -s*0.2,by-s*0.42);
-    ctx.bezierCurveTo(-s*0.14,by-s*0.56, -s*0.04,by-s*0.62, s*0.02,by-s*0.68);
-    ctx.bezierCurveTo(s*0.1,by-s*0.74, s*0.18,by-s*0.72, s*0.22,by-s*0.66);
-    ctx.bezierCurveTo(s*0.28,by-s*0.58, s*0.26,by-s*0.46, s*0.22,by-s*0.38);
-    ctx.bezierCurveTo(s*0.18,by-s*0.3, s*0.12,by-s*0.26, s*0.08,by-s*0.2);
-    ctx.bezierCurveTo(s*0.18,by-s*0.18, s*0.24,by-s*0.1, s*0.2,by);
-    ctx.closePath();
-    applyBase(radGrad(-s*0.02, by-s*0.38, s*0.05, s*0.38, fillMain, fillMid));
-    ctx.fill(); ctx.stroke();
-    // Mane
-    ctx.beginPath();
-    ctx.moveTo(-s*0.06, by-s*0.42);
-    ctx.bezierCurveTo(-s*0.14,by-s*0.48, -s*0.1,by-s*0.58, -s*0.02,by-s*0.62);
-    ctx.bezierCurveTo(-s*0.08,by-s*0.52, -s*0.04,by-s*0.44, s*0.02,by-s*0.42);
-    ctx.closePath();
-    ctx.fillStyle=fillDark; ctx.fill();
-    // Eye
-    ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
-    ctx.beginPath(); ctx.arc(s*0.14,by-s*0.56, s*0.04, 0, Math.PI*2);
-    ctx.fillStyle=isWhite?'#3a2010':'#e0d0ff'; ctx.fill();
-    ctx.beginPath(); ctx.arc(s*0.13,by-s*0.57, s*0.015, 0, Math.PI*2);
-    ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.fill();
-    // Nostril
-    ctx.beginPath(); ctx.arc(s*0.2,by-s*0.42, s*0.025, 0, Math.PI*2);
-    ctx.fillStyle=fillDark; ctx.fill();
-    // Ear
-    ctx.beginPath();
-    ctx.moveTo(s*0.04,by-s*0.68); ctx.lineTo(s*0.0,by-s*0.78); ctx.lineTo(s*0.12,by-s*0.72);
-    ctx.closePath(); ctx.fillStyle=fillMid; ctx.fill(); ctx.stroke();
-    // Highlight
-    ctx.beginPath(); ctx.arc(-s*0.06,by-s*0.5, s*0.06, 0, Math.PI*2);
-    ctx.fillStyle=hiCol; ctx.fill();
-
-  } else if (type === 'B') {
-    // ── BISHOP ──
-    var bw=s*0.5, bh=s*0.1, by=h-bh;
-    ctx.beginPath(); ctx.ellipse(0,by+bh*0.5,bw/2,bh*0.7,0,0,Math.PI*2);
-    applyBase(linGrad(-bw/2,by,bw/2,by+bh,fillMid,fillDark)); ctx.fill(); ctx.stroke();
-    // Lower body
-    ctx.beginPath();
-    ctx.moveTo(-s*0.2,by); ctx.bezierCurveTo(-s*0.22,by-s*0.2,-s*0.14,by-s*0.32,-s*0.05,by-s*0.38);
-    ctx.lineTo(s*0.05,by-s*0.38); ctx.bezierCurveTo(s*0.14,by-s*0.32,s*0.22,by-s*0.2,s*0.2,by);
-    ctx.closePath();
-    applyBase(linGrad(0,by,0,by-s*0.38,fillMid,fillMain)); ctx.fill(); ctx.stroke();
-    // Middle neck
-    ctx.beginPath();
-    ctx.ellipse(0,by-s*0.38,s*0.1,s*0.05,0,0,Math.PI*2);
-    applyBase(linGrad(0,by-s*0.43,0,by-s*0.33,fillMain,fillMid)); ctx.fill(); ctx.stroke();
-    // Upper bulge
-    ctx.beginPath();
-    ctx.arc(0,by-s*0.56,s*0.14,0,Math.PI*2);
-    applyBase(radGrad(-s*0.04,by-s*0.62,s*0.02,s*0.16,fillMain,fillMid)); ctx.fill(); ctx.stroke();
-    // Collar ring
-    ctx.beginPath();
-    ctx.ellipse(0,by-s*0.42,s*0.12,s*0.04,0,0,Math.PI*2);
-    ctx.fillStyle=fillMid; ctx.strokeStyle=strokeCol; ctx.lineWidth=sw*0.7; ctx.fill(); ctx.stroke();
-    // Top pin/cross
-    ctx.beginPath(); ctx.arc(0,by-s*0.72,s*0.055,0,Math.PI*2);
-    applyBase(radGrad(-s*0.02,by-s*0.75,s*0.005,s*0.06,fillMain,fillMid)); ctx.fill(); ctx.stroke();
-    // Cross on top
-    ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
-    ctx.strokeStyle=strokeCol; ctx.lineWidth=sw*0.9;
-    ctx.beginPath(); ctx.moveTo(-s*0.04,by-s*0.72); ctx.lineTo(s*0.04,by-s*0.72); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,by-s*0.76); ctx.lineTo(0,by-s*0.68); ctx.stroke();
-    // Diagonal slash
-    ctx.strokeStyle=isWhite?'rgba(150,100,40,0.5)':'rgba(200,180,255,0.4)'; ctx.lineWidth=sw*0.7;
-    ctx.beginPath(); ctx.moveTo(-s*0.06,by-s*0.48); ctx.lineTo(s*0.06,by-s*0.48); ctx.stroke();
-    // Highlight
-    ctx.beginPath(); ctx.arc(-s*0.05,by-s*0.62,s*0.055,0,Math.PI*2);
-    ctx.fillStyle=hiCol; ctx.fill();
-
-  } else if (type === 'Q') {
-    // ── QUEEN ──
-    var bw=s*0.6, bh=s*0.1, by=h-bh;
-    ctx.beginPath(); ctx.ellipse(0,by+bh*0.5,bw/2,bh*0.7,0,0,Math.PI*2);
-    applyBase(linGrad(-bw/2,by,bw/2,by+bh,fillMid,fillDark)); ctx.fill(); ctx.stroke();
-    // Main body
-    ctx.beginPath();
-    ctx.moveTo(-s*0.26,by);
-    ctx.bezierCurveTo(-s*0.28,by-s*0.22, -s*0.24,by-s*0.38, -s*0.12,by-s*0.46);
-    ctx.bezierCurveTo(-s*0.06,by-s*0.5, s*0.06,by-s*0.5, s*0.12,by-s*0.46);
-    ctx.bezierCurveTo(s*0.24,by-s*0.38, s*0.28,by-s*0.22, s*0.26,by);
-    ctx.closePath();
-    applyBase(linGrad(0,by,0,by-s*0.5,fillMid,fillMain)); ctx.fill(); ctx.stroke();
-    // Waist ring
-    ctx.beginPath(); ctx.ellipse(0,by-s*0.46,s*0.14,s*0.045,0,0,Math.PI*2);
-    ctx.fillStyle=fillMid; ctx.strokeStyle=strokeCol; ctx.lineWidth=sw*0.8; ctx.fill(); ctx.stroke();
-    // Crown base
-    ctx.beginPath(); ctx.ellipse(0,by-s*0.5,s*0.2,s*0.06,0,0,Math.PI*2);
-    applyBase(linGrad(0,by-s*0.56,0,by-s*0.44,fillMain,fillMid)); ctx.fill(); ctx.stroke();
-    // Crown spikes + balls
-    var spikes=[[-s*0.18,by-s*0.56],[-s*0.09,by-s*0.64],[0,by-s*0.68],[s*0.09,by-s*0.64],[s*0.18,by-s*0.56]];
-    for(var i=0;i<spikes.length;i++){
-      var sp=spikes[i];
-      var r2=(i===2)?s*0.065:(i===1||i===3)?s*0.055:s*0.05;
-      ctx.beginPath(); ctx.arc(sp[0],sp[1],r2,0,Math.PI*2);
-      applyBase(radGrad(sp[0]-r2*0.3,sp[1]-r2*0.3,r2*0.1,r2,fillMain,fillMid)); ctx.fill(); ctx.stroke();
-    }
-    // Highlight
-    ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
-    ctx.beginPath(); ctx.arc(-s*0.08,by-s*0.3,s*0.07,0,Math.PI*2);
-    ctx.fillStyle=hiCol; ctx.fill();
-    // Center gem
-    ctx.beginPath(); ctx.arc(0,by-s*0.68,s*0.04,0,Math.PI*2);
-    ctx.fillStyle=isWhite?'#ffd700':'#cc88ff'; ctx.fill();
-    ctx.beginPath(); ctx.arc(-s*0.01,by-s*0.69,s*0.015,0,Math.PI*2);
-    ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fill();
-
-  } else if (type === 'K') {
-    // ── KING ──
-    var bw=s*0.58, bh=s*0.1, by=h-bh;
-    ctx.beginPath(); ctx.ellipse(0,by+bh*0.5,bw/2,bh*0.7,0,0,Math.PI*2);
-    applyBase(linGrad(-bw/2,by,bw/2,by+bh,fillMid,fillDark)); ctx.fill(); ctx.stroke();
-    // Main body
-    ctx.beginPath();
-    ctx.moveTo(-s*0.25,by);
-    ctx.bezierCurveTo(-s*0.27,by-s*0.2, -s*0.23,by-s*0.36, -s*0.12,by-s*0.44);
-    ctx.bezierCurveTo(-s*0.06,by-s*0.48, s*0.06,by-s*0.48, s*0.12,by-s*0.44);
-    ctx.bezierCurveTo(s*0.23,by-s*0.36, s*0.27,by-s*0.2, s*0.25,by);
-    ctx.closePath();
-    applyBase(linGrad(0,by,0,by-s*0.48,fillMid,fillMain)); ctx.fill(); ctx.stroke();
-    // Waist ring
-    ctx.beginPath(); ctx.ellipse(0,by-s*0.44,s*0.14,s*0.04,0,0,Math.PI*2);
-    ctx.fillStyle=fillMid; ctx.strokeStyle=strokeCol; ctx.lineWidth=sw*0.8; ctx.fill(); ctx.stroke();
-    // Crown base platform
-    ctx.beginPath(); ctx.ellipse(0,by-s*0.48,s*0.2,s*0.055,0,0,Math.PI*2);
-    applyBase(linGrad(0,by-s*0.54,0,by-s*0.42,fillMain,fillMid)); ctx.fill(); ctx.stroke();
-    // Crown band
-    ctx.beginPath(); ctx.rect(-s*0.2,by-s*0.6,s*0.4,s*0.1);
-    applyBase(linGrad(0,by-s*0.6,0,by-s*0.5,fillMain,fillMid)); ctx.fill(); ctx.stroke();
-    // Crown top points
-    for(var i=-1;i<=1;i++){
-      ctx.beginPath(); ctx.moveTo(i*s*0.13-s*0.06,by-s*0.6);
-      ctx.lineTo(i*s*0.13,by-s*0.72); ctx.lineTo(i*s*0.13+s*0.06,by-s*0.6);
-      ctx.closePath();
-      applyBase(linGrad(i*s*0.13,by-s*0.72,i*s*0.13,by-s*0.6,fillMain,fillMid)); ctx.fill(); ctx.stroke();
-    }
-    // Cross on top
-    ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
-    ctx.strokeStyle=strokeCol; ctx.lineWidth=sw*1.4; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(0,by-s*0.78); ctx.lineTo(0,by-s*0.9); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-s*0.07,by-s*0.85); ctx.lineTo(s*0.07,by-s*0.85); ctx.stroke();
-    // Crown jewels
-    var gems=[[-s*0.13,by-s*0.55],[0,by-s*0.55],[s*0.13,by-s*0.55]];
-    var gemCols=isWhite?['#e74c3c','#f1c40f','#e74c3c']:['#ff6688','#ffdd44','#ff6688'];
-    for(var i=0;i<gems.length;i++){
-      ctx.beginPath(); ctx.arc(gems[i][0],gems[i][1],s*0.035,0,Math.PI*2);
-      ctx.fillStyle=gemCols[i]; ctx.fill();
-      ctx.beginPath(); ctx.arc(gems[i][0]-s*0.012,gems[i][1]-s*0.012,s*0.012,0,Math.PI*2);
-      ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fill();
-    }
-    // Highlight
-    ctx.beginPath(); ctx.arc(-s*0.08,by-s*0.28,s*0.065,0,Math.PI*2);
-    ctx.fillStyle=hiCol; ctx.fill();
-  }
+  ctx.fillStyle = isWhite ? '#ffffff' : '#1a1a1a';
+  ctx.fillText(sym, cx, cy + C * 0.04);
 
   ctx.restore();
 }
+
+
+
+
 
 function drawBoard(gs){
   chessState=gs;
