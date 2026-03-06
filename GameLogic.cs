@@ -105,6 +105,9 @@ public static class Snake
             var h=new Point{X=s.Body[0].X,Y=s.Body[0].Y};
             if (s.Direction=="UP") h.Y--; else if (s.Direction=="DOWN") h.Y++;
             else if (s.Direction=="LEFT") h.X--; else h.X++;
+            // Wrap-around: đi xuyên tường sang tường đối diện
+            h.X = ((h.X % GridSize) + GridSize) % GridSize;
+            h.Y = ((h.Y % GridSize) + GridSize) % GridSize;
             s.Body.Insert(0,h);
             if (h.X==gs.Food.X&&h.Y==gs.Food.Y){s.Score++;gs.Food=GenFood(gs.Snakes);}
             else s.Body.RemoveAt(s.Body.Count-1);
@@ -112,8 +115,10 @@ public static class Snake
         foreach (var s in alive)
         {
             var h=s.Body[0];
-            if (h.X<0||h.X>=GridSize||h.Y<0||h.Y>=GridSize){s.Alive=false;continue;}
-            for (int i=1;i<s.Body.Count;i++) if (h.X==s.Body[i].X&&h.Y==s.Body[i].Y){s.Alive=false;break;}
+            // Không chết vì tường - chỉ chết vì đâm rắn khác
+            // Tự đâm thân mình thì vẫn chết
+            for (int i=1;i<s.Body.Count;i++)
+                if (h.X==s.Body[i].X&&h.Y==s.Body[i].Y){s.Alive=false;break;}
             if (s.Alive) foreach (var o in gs.Snakes)
             {
                 if (o.Id==s.Id||!o.Alive) continue;
