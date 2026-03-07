@@ -469,8 +469,7 @@ function initChessCanvas(){
   chessCtx=chessCanvas.getContext('2d');
 }
 
-// ── Chess Pieces: Unicode pixel-recolor (mobile-safe) ──
-// Render glyph → read pixels → recolor all dark pixels → cache result
+// ── Chess Pieces: Unicode with auto-centering + pixel recolor ──
 var _UNICODE={
   wK:'\u2654',wQ:'\u2655',wR:'\u2656',wB:'\u2657',wN:'\u2658',wP:'\u2659',
   bK:'\u265a',bQ:'\u265b',bR:'\u265c',bB:'\u265d',bN:'\u265e',bP:'\u265f'
@@ -482,46 +481,65 @@ function _buildPiece(pc,C){
   var isW=pc[0]==='w';
   var sym=_UNICODE[pc]; if(!sym)return null;
   var sz=Math.round(C);
+  // Step 1: Render at 2x into large canvas to get accurate pixel data
+  var big=Math.round(C*2);
+  var tmp=document.createElement('canvas');
+  tmp.width=big; tmp.height=big;
+  var tx=tmp.getContext('2d');
+  var fs=Math.floor(big*0.80);
+  tx.font='bold '+fs+'px serif';
+  tx.textAlign='center';
+  tx.textBaseline='middle';
+  tx.fillStyle='#000';
+  tx.fillText(sym,big/2,big/2);
+
+  // Step 2: Find actual bounding box of the glyph pixels
+  var id=tx.getImageData(0,0,big,big);
+  var d=id.data;
+  var minX=big,maxX=0,minY=big,maxY=0;
+  for(var y=0;y<big;y++){
+    for(var x=0;x<big;x++){
+      if(d[(y*big+x)*4+3]>20){
+        if(x<minX)minX=x; if(x>maxX)maxX=x;
+        if(y<minY)minY=y; if(y>maxY)maxY=y;
+      }
+    }
+  }
+  // If no pixels found (font not loaded yet), return null to trigger retry
+  if(minX>maxX)return null;
+
+  // Step 3: Draw glyph re-centered into final sz×sz canvas with padding
+  var pad=Math.round(sz*0.06);
+  var glyphW=maxX-minX+1, glyphH=maxY-minY+1;
+  var scale=Math.min((sz-pad*2)/glyphW,(sz-pad*2)/glyphH);
+  var dw=Math.round(glyphW*scale), dh=Math.round(glyphH*scale);
+  var dx=Math.round((sz-dw)/2), dy=Math.round((sz-dh)/2);
+
   var oc=document.createElement('canvas');
   oc.width=sz; oc.height=sz;
   var ox=oc.getContext('2d');
-  var fs=Math.floor(sz*0.82);
   ox.clearRect(0,0,sz,sz);
-  ox.font='bold '+fs+'px serif';
-  ox.textAlign='center';
-  ox.textBaseline='middle';
-  // Draw in black - mobile may render its own color but pixel data will have alpha
-  ox.fillStyle='#000000';
-  ox.fillText(sym,sz/2,sz/2+fs*0.04);
+  ox.drawImage(tmp,minX,minY,glyphW,glyphH,dx,dy,dw,dh);
 
-  // Read pixels and recolor: any pixel with alpha>20 gets our target color
+  // Step 4: Pixel recolor
   var imgd=ox.getImageData(0,0,sz,sz);
-  var d=imgd.data;
-  var fr,fg,fb,br,bg,bb;
+  var dd=imgd.data;
+  var fR,fG,fB,eR,eG,eB;
   if(isW){
-    // Fill color: warm cream  Outline: dark brown
-    fr=245;fg=232;fb=200; // fill: #f5e8c8
-    br=50; bg=28; bb=0;   // outline: #321c00
+    fR=248;fG=240;fB=215; // bright ivory fill
+    eR=40; eG=18; eB=0;   // very dark brown edge
   } else {
-    // Fill color: near-black  Outline: warm tan
-    fr=18; fg=10; fb=2;   // fill: #120a02
-    br=210;bg=180;bb=120; // outline: #d2b478
+    fR=12; fG=8;  fB=4;   // near-black fill
+    eR=215;eG=170;eB=95;  // gold edge
   }
-  for(var i=0;i<d.length;i+=4){
-    var a=d[i+3];
-    if(a<20){d[i+3]=0;continue;}
-    // Pixels with high alpha = glyph body = fill color
-    // Pixels with medium alpha = edge = blend toward outline
-    if(a>180){
-      d[i]=fr;d[i+1]=fg;d[i+2]=fb;d[i+3]=255;
-    } else {
-      // edge pixels: outline color
-      var t=a/180;
-      d[i]=Math.round(br+(fr-br)*t);
-      d[i+1]=Math.round(bg+(fg-bg)*t);
-      d[i+2]=Math.round(bb+(fb-bb)*t);
-      d[i+3]=Math.min(255,a+80);
-    }
+  for(var i=0;i<dd.length;i+=4){
+    var a=dd[i+3];
+    if(a<15){dd[i+3]=0;continue;}
+    var t=Math.min(1,a/200);
+    dd[i]  =Math.round(eR+(fR-eR)*t);
+    dd[i+1]=Math.round(eG+(fG-eG)*t);
+    dd[i+2]=Math.round(eB+(fB-eB)*t);
+    dd[i+3]=Math.min(255,a+55);
   }
   ox.putImageData(imgd,0,0);
   _pieceCache[k]=oc;
@@ -531,13 +549,20 @@ function _buildPiece(pc,C){
 function drawPiece(ctx,pc,cx,cy,C){
   var key=pc[0]+pc[1];
   var img=_buildPiece(key,C);
-  if(!img)return;
+  if(!img){
+    // Font not ready - draw placeholder and retry on next state update
+    ctx.save();
+    ctx.fillStyle=(pc[0]==='w')?'rgba(240,232,210,0.7)':'rgba(20,15,8,0.7)';
+    ctx.beginPath();ctx.arc(cx,cy,C*0.35,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+    return;
+  }
   ctx.save();
-  ctx.shadowColor='rgba(0,0,0,0.5)';
-  ctx.shadowBlur=C*0.10;
-  ctx.shadowOffsetX=C*0.03;
-  ctx.shadowOffsetY=C*0.06;
-  ctx.drawImage(img,cx-C/2,cy-C/2,C,C);
+  ctx.shadowColor='rgba(0,0,0,0.55)';
+  ctx.shadowBlur=Math.max(2,C*0.07);
+  ctx.shadowOffsetX=Math.max(1,C*0.025);
+  ctx.shadowOffsetY=Math.max(1,C*0.04);
+  ctx.drawImage(img,Math.round(cx-C/2),Math.round(cy-C/2),C,C);
   ctx.restore();
 }
 
@@ -590,11 +615,9 @@ function drawBoard(gs){
     ctx.textAlign='left'; ctx.fillText(rankNum,i*C+2,(i===0?C*0.05:0)+i*C);
     ctx.textAlign='right'; ctx.fillText(fileLetter,(i+1)*C-2,7*C+C*0.72);
   }
-  // Draw pieces with drop shadow
-  ctx.shadowColor='rgba(0,0,0,0.38)';
-  ctx.shadowBlur=Math.max(3,C*0.09);
-  ctx.shadowOffsetX=Math.max(1,C*0.04);
-  ctx.shadowOffsetY=Math.max(1,C*0.04);
+  // Draw pieces (shadow handled inside drawPiece)
+  ctx.shadowColor='transparent';
+  ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
   for(var idx=0;idx<64;idx++){
     var piece=gs.board[idx];
     if(!piece) continue;
