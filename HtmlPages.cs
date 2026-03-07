@@ -231,7 +231,7 @@ function updatePlayerUI(p){
 }
 connection.onreconnecting(()=>showNetworkStatus('🔴 Mất kết nối - Đang kết nối lại...'));
 connection.onreconnected(()=>{hideNetworkStatus();const s=initPlayer();if(s.nickname)registerPlayer(s.nickname,s.color);});
-socket.on('game:start',(data)=>{if(!window.currentPlayer){window._pendingGameStart=data;return;}if(window._gameStartHandlers)window._gameStartHandlers.forEach(fn=>fn(data));});
+socket.on('game:start',(data)=>{const cd=document.getElementById('cdOverlay');if(cd)cd.remove();if(!window.currentPlayer){window._pendingGameStart=data;return;}if(window._gameStartHandlers)window._gameStartHandlers.forEach(fn=>fn(data));});
 function showNetworkStatus(msg){let e=document.getElementById('networkStatus');if(!e){e=document.createElement('div');e.id='networkStatus';e.className='network-status';document.body.appendChild(e);}e.textContent=msg;e.style.display='block';}
 function hideNetworkStatus(){const e=document.getElementById('networkStatus');if(e)e.style.display='none';}
 function createAvatar(nickname,color,size=36){const d=document.createElement('div');d.className='player-avatar';d.style.cssText='background:'+color+';width:'+size+'px;height:'+size+'px;font-size:'+(size*.32)+'px;';d.textContent=nickname.charAt(0).toUpperCase();return d;}
@@ -293,7 +293,7 @@ function renderPlayers(room){
 function renderCode(code){const e=document.getElementById('roomCode');if(e)e.textContent=code;}
 function updateLobbyUI(room){const rb=document.getElementById('readyBtn');if(rb)rb.disabled=room.state!=='WAITING';}
 function showLobbyView(){const j=document.getElementById('joinArea'),l=document.getElementById('lobbyArea');if(j)j.classList.add('hidden');if(l)l.classList.remove('hidden');}
-function showCountdown(count){showLobbyView();const old=document.getElementById('cdOverlay');if(old)old.remove();if(!count)return;const o=document.createElement('div');o.id='cdOverlay';o.className='countdown-overlay';o.innerHTML='<div class=""countdown-number"">'+count+'</div>';document.body.appendChild(o);setTimeout(()=>o.remove(),900);}
+function showCountdown(count){const old=document.getElementById('cdOverlay');if(old)old.remove();if(!count)return;const o=document.createElement('div');o.id='cdOverlay';o.className='countdown-overlay';o.innerHTML='<div class=""countdown-number"">'+count+'</div>';document.body.appendChild(o);setTimeout(()=>{if(o.parentNode)o.remove();},800);}
 function addChatMessage(nickname,color,message,isCorrect=false,isSystem=false){
   const el=document.getElementById('chatMessages');if(!el)return;
   const m=document.createElement('div');m.className='chat-msg'+(isCorrect?' is-correct':'')+(isSystem?' is-system':'');
@@ -458,34 +458,30 @@ let selectedSq=null,highlightedSqs=new Set(),legalFromServer={},lastMove=null;
 function initChessCanvas(){
   var wrap=document.getElementById('chessBoardWrap');
   if(!wrap)return;
-  // Use wrap's actual rendered width for perfect alignment on all devices
-  var rawSize=wrap.getBoundingClientRect().width||wrap.offsetWidth||Math.min(560,window.innerWidth*0.92);
-  var size=Math.floor(rawSize/8)*8;
-  if(size<160)size=Math.floor(Math.min(560,window.innerWidth*0.92)/8)*8;
-  if(chessCanvas&&CELL===size/8)return;
+  // Tính từ window - KHÔNG dùng wrap.clientWidth (gây shift mỗi nước đi)
+  var size=Math.floor(Math.min(560,window.innerWidth*0.96)/8)*8;
+  if(chessCanvas&&CELL===size/8)return; // size không đổi, bỏ qua
   CELL=size/8;
-  var dpr=window.devicePixelRatio||1;
   if(!chessCanvas){
     chessCanvas=document.createElement('canvas');
     chessCanvas.id='chessCanvas';
-    chessCanvas.style.cssText='display:block;cursor:pointer;border-radius:4px;touch-action:none;-webkit-tap-highlight-color:transparent;';
-    // Use pointerdown for reliable mobile tap (works on all devices)
-    chessCanvas.addEventListener('pointerdown',function(e){
+    chessCanvas.style.cssText='display:block;cursor:pointer;border-radius:4px;touch-action:none;';
+    chessCanvas.addEventListener('click',onCanvasClick);
+    chessCanvas.addEventListener('touchend',function(e){
       e.preventDefault();
+      var t=e.changedTouches[0];
       var r=chessCanvas.getBoundingClientRect();
-      var x=Math.floor((e.clientX-r.left)/r.width*8);
-      var y=Math.floor((e.clientY-r.top)/r.height*8);
+      var x=Math.floor((t.clientX-r.left)/r.width*8);
+      var y=Math.floor((t.clientY-r.top)/r.height*8);
       if(x>=0&&x<8&&y>=0&&y<8){var sq=myColor==='black'?(7-y)*8+(7-x):y*8+x;onSquareClick(sq);}
     },{passive:false});
     wrap.appendChild(chessCanvas);
   }
-  // Canvas internal resolution = CSS size × DPR (sharp on retina/mobile)
-  chessCanvas.width=size*dpr;
-  chessCanvas.height=size*dpr;
+  chessCanvas.width=size;
+  chessCanvas.height=size;
   chessCanvas.style.width=size+'px';
   chessCanvas.style.height=size+'px';
   chessCtx=chessCanvas.getContext('2d');
-  chessCtx.setTransform(dpr,0,0,dpr,0,0);
 }
 
 // ── Chess Pieces ──
@@ -696,6 +692,7 @@ socket.on('game:over',function(data){showGameOver(data.winnerId,data.winnerNickn
 (window._gameStartHandlers=window._gameStartHandlers||[]).push(function(data){
   var gameType=data.gameType, gameState=data.gameState;
   if(gameType!=='chess')return;
+  var cdOv=document.getElementById('cdOverlay');if(cdOv)cdOv.remove();
   chessState=gameState; lastMove=null; legalFromServer={}; clearSelection();
   var myId=window.currentPlayer&&window.currentPlayer.id;
   var myPlayer=gameState.players.find(function(p){return p.id===myId;});
@@ -917,7 +914,7 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
 .promo-btn{{background:var(--bg2);border:2px solid var(--br);border-radius:12px;padding:12px;cursor:pointer;transition:all .2s;width:88px;height:88px;display:flex;align-items:center;justify-content:center;}}
 .promo-btn:hover{{border-color:var(--ac);transform:scale(1.08);box-shadow:var(--glow);}}
 .promo-btn img{{width:60px;height:60px;}}
-#chessBoardWrap{{border-radius:6px;overflow:visible;box-shadow:0 8px 32px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4);}}
+#chessBoardWrap{{border-radius:6px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4);}}
 </style></head><body>
 {Header}
 {JoinPanel("♟️", "CHESS", "#cc44ff", "chess", "Move pieces • Checkmate to win • 10 min/player")}
