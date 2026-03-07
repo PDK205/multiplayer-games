@@ -212,7 +212,7 @@ public class PokerPlayer
 {
     public string Id{get;set;}=""; public string Nickname{get;set;}=""; public string Color{get;set;}="";
     public int Chips{get;set;}=1000; public List<PokerCard> Hand{get;set;}=new();
-    public int CurrentBet{get;set;}=0; public bool Folded{get;set;}=false; public bool AllIn{get;set;}=false; public int Score{get;set;}=0;
+    public int CurrentBet{get;set;}=0; public int TotalBet{get;set;}=0; public bool Folded{get;set;}=false; public bool AllIn{get;set;}=false; public int Score{get;set;}=0;
 }
 
 public class PokerGameState

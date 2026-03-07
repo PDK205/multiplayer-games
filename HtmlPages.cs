@@ -453,21 +453,31 @@ let chessCanvas=null,chessCtx=null,CELL=0,chessState=null,myColor=null;
 let selectedSq=null,highlightedSqs=new Set(),legalFromServer={},lastMove=null;
 
 function initChessCanvas(){
-  const wrap=document.getElementById('chessBoardWrap');
+  var wrap=document.getElementById('chessBoardWrap');
   if(!wrap)return;
-  chessCanvas=document.getElementById('chessCanvas');
+  // Tính từ window - KHÔNG dùng wrap.clientWidth (gây shift mỗi nước đi)
+  var size=Math.floor(Math.min(560,window.innerWidth*0.96)/8)*8;
+  if(chessCanvas&&CELL===size/8)return; // size không đổi, bỏ qua
+  CELL=size/8;
   if(!chessCanvas){
     chessCanvas=document.createElement('canvas');
     chessCanvas.id='chessCanvas';
-    chessCanvas.style.cssText='display:block;cursor:pointer;border-radius:4px;touch-action:none;max-width:100%;';
+    chessCanvas.style.cssText='display:block;cursor:pointer;border-radius:4px;touch-action:none;';
     chessCanvas.addEventListener('click',onCanvasClick);
-    chessCanvas.addEventListener('touchend',function(e){e.preventDefault();var t=e.changedTouches[0];var r=chessCanvas.getBoundingClientRect();var x=Math.floor((t.clientX-r.left)*(chessCanvas.width/r.width)/CELL);var y=Math.floor((t.clientY-r.top)*(chessCanvas.height/r.height)/CELL);if(x>=0&&x<8&&y>=0&&y<8){var sq=myColor==='black'?(7-y)*8+(7-x):y*8+x;onSquareClick(sq);}},{passive:false});
+    chessCanvas.addEventListener('touchend',function(e){
+      e.preventDefault();
+      var t=e.changedTouches[0];
+      var r=chessCanvas.getBoundingClientRect();
+      var x=Math.floor((t.clientX-r.left)/r.width*8);
+      var y=Math.floor((t.clientY-r.top)/r.height*8);
+      if(x>=0&&x<8&&y>=0&&y<8){var sq=myColor==='black'?(7-y)*8+(7-x):y*8+x;onSquareClick(sq);}
+    },{passive:false});
     wrap.appendChild(chessCanvas);
   }
-  const size=Math.min(wrap.clientWidth||560,560,window.innerWidth*0.95);
-  CELL=Math.floor(size/8);
-  chessCanvas.width=CELL*8;
-  chessCanvas.height=CELL*8;
+  chessCanvas.width=size;
+  chessCanvas.height=size;
+  chessCanvas.style.width=size+'px';
+  chessCanvas.style.height=size+'px';
   chessCtx=chessCanvas.getContext('2d');
 }
 
@@ -573,9 +583,9 @@ function initChessBoard(){initChessCanvas();}
 function onCanvasClick(e){
   if(!chessCtx||!CELL)return;
   var r=chessCanvas.getBoundingClientRect();
-  var scaleX=chessCanvas.width/r.width, scaleY=chessCanvas.height/r.height;
-  var x=Math.floor((e.clientX-r.left)*scaleX/CELL);
-  var y=Math.floor((e.clientY-r.top)*scaleY/CELL);
+  // Dùng r.width/height (CSS size) để tính cột/hàng, không dùng canvas.width
+  var x=Math.floor((e.clientX-r.left)/r.width*8);
+  var y=Math.floor((e.clientY-r.top)/r.height*8);
   if(x<0||x>=8||y<0||y>=8)return;
   var sq=myColor==='black'?(7-y)*8+(7-x):y*8+x;
   onSquareClick(sq);
@@ -609,20 +619,32 @@ function showPromoDialog(from,to){
   var d=document.getElementById('promoDialog'); if(!d)return;
   d.style.display='flex';
   var side=chessState.board[from][0];
+  var syms={Q:{w:'♛',b:'♛'},R:{w:'♜',b:'♜'},B:{w:'♝',b:'♝'},N:{w:'♞',b:'♞'}};
+  var labels={Q:'Hậu',R:'Xe',B:'Tượng',N:'Mã'};
   ['Q','R','B','N'].forEach(function(p){
     var btn=document.getElementById('promo'+p);
     if(btn){
-      var key=side+p;
-      var label={Q:'Queen',R:'Rook',B:'Bishop',N:'Knight'}[p];
-      var img=getPieceImg(key);
       btn.innerHTML='';
       var cv=document.createElement('canvas');cv.width=64;cv.height=64;
       var cx2=cv.getContext('2d');
-      function tryDraw(){if(img.complete&&img.naturalWidth>0){cx2.clearRect(0,0,64,64);cx2.save();cx2.shadowColor='rgba(0,0,0,.4)';cx2.shadowBlur=4;cx2.drawImage(img,3,3,58,58);cx2.restore();}else{img.onload=tryDraw;}}
-      tryDraw();
-      cv.title=label;cv.style.cssText='cursor:pointer;border-radius:8px;';
+      cx2.fillStyle=side==='w'?'#2a2a3a':'#1a1a2a';
+      cx2.beginPath();cx2.roundRect(2,2,60,60,10);cx2.fill();
+      cx2.shadowColor='rgba(0,0,0,0.6)';cx2.shadowBlur=4;cx2.shadowOffsetY=2;
+      cx2.font='bold 38px serif';
+      cx2.textAlign='center';cx2.textBaseline='middle';
+      cx2.strokeStyle=side==='w'?'#5a3a10':'#ffffff';
+      cx2.lineWidth=2;cx2.lineJoin='round';
+      cx2.strokeText(syms[p][side]||syms[p].w,32,34);
+      cx2.fillStyle=side==='w'?'#ffffff':'#1a1a1a';
+      cx2.fillText(syms[p][side]||syms[p].w,32,34);
+      cx2.shadowBlur=0;
+      cx2.font='bold 10px sans-serif';
+      cx2.fillStyle='rgba(255,255,255,0.6)';
+      cx2.fillText(labels[p],32,58);
+      cv.style.cssText='cursor:pointer;border-radius:8px;border:1px solid rgba(255,255,255,0.15);';
+      cv.title=labels[p];
       btn.appendChild(cv);
-      btn.title=label;
+      btn.title=labels[p];
       btn.onclick=function(){d.style.display='none';socket.emit('chess:move',{from:from,to:to,promotion:p});clearSelection();};
     }
   });

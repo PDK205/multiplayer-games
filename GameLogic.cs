@@ -873,7 +873,7 @@ public static class Poker
         gs.Winner=null; gs.WinReason=null; gs.ActionLog=new List<string>();
         foreach(var p in gs.Players.ToList()) if(p.Chips<=0) gs.Players.Remove(p);
         if(gs.Players.Count<2){gs.GameOver=true;return;}
-        foreach(var p in gs.Players){p.Hand=new List<PokerCard>();p.CurrentBet=0;p.Folded=false;p.AllIn=false;}
+        foreach(var p in gs.Players){p.Hand=new List<PokerCard>();p.CurrentBet=0;p.TotalBet=0;p.Folded=false;p.AllIn=false;}
         int n=gs.Players.Count;
         gs.DealerIndex=gs.DealerIndex%n;
         int sb=(gs.DealerIndex+1)%n;
@@ -892,7 +892,7 @@ public static class Poker
     private static void ForceBet(PokerGameState gs,PokerPlayer p,int amt)
     {
         int a=Math.Min(amt,p.Chips);
-        p.Chips-=a; p.CurrentBet+=a; gs.Pot+=a;
+        p.Chips-=a; p.CurrentBet+=a; p.TotalBet+=a; gs.Pot+=a;
         if(p.Chips==0) p.AllIn=true;
     }
 
@@ -909,7 +909,7 @@ public static class Poker
     private static void Bet(PokerGameState gs,PokerPlayer p,int amt)
     {
         int a=Math.Min(amt,p.Chips);
-        p.Chips-=a; p.CurrentBet+=a; gs.Pot+=a;
+        p.Chips-=a; p.CurrentBet+=a; p.TotalBet+=a; gs.Pot+=a;
         if(p.Chips==0) p.AllIn=true;
     }
 
@@ -1043,18 +1043,52 @@ public static class Poker
     {
         gs.Phase="showdown";
         var active=gs.Players.Where(p=>!p.Folded).ToList();
-        PokerPlayer? best=null; int bestSc=-1; string? bestNm=null;
-        foreach(var p in active){
-            var(sc,nm)=BestHand(p.Hand.Concat(gs.CommunityCards).ToList());
-            if(sc>bestSc){bestSc=sc;best=p;bestNm=nm;}
+        if(active.Count==0){gs.Pot=0;return "";}
+
+        // Tính hand score cho mọi người không fold
+        var scores=new Dictionary<string,(int sc,string nm)>();
+        foreach(var p in active)
+            scores[p.Id]=BestHand(p.Hand.Concat(gs.CommunityCards).ToList());
+
+        // ── SIDE POT: mỗi player chỉ thắng tối đa phần họ contribute ──
+        var all=gs.Players.ToList();
+        var levels=all.Where(p=>p.TotalBet>0).Select(p=>p.TotalBet)
+            .OrderBy(x=>x).Distinct().ToList();
+
+        int pot=gs.Pot;
+        int prevLv=0;
+        string lastWinner="";
+
+        foreach(var lv in levels)
+        {
+            int perPerson=lv-prevLv;
+            int eligible=all.Count(p=>p.TotalBet>=lv);
+            int sidePot=Math.Min(perPerson*eligible, pot);
+            if(sidePot<=0){prevLv=lv;continue;}
+
+            // Người eligible (TotalBet>=lv) + không fold + hand tốt nhất
+            var w=active.Where(p=>p.TotalBet>=lv)
+                .OrderByDescending(p=>scores.TryGetValue(p.Id,out var sc)?sc.sc:-1)
+                .FirstOrDefault();
+            if(w!=null){
+                w.Chips+=sidePot; pot-=sidePot; lastWinner=w.Id;
+                if(gs.Winner==null){gs.Winner=w.Id;gs.WinReason=scores.TryGetValue(w.Id,out var sc2)?sc2.nm:"";}
+                gs.ActionLog.Add($"🏆 {w.Nickname} thắng {sidePot} chips ({(scores.TryGetValue(w.Id,out var sc3)?sc3.nm:"")})!");
+            }
+            prevLv=lv;
         }
-        if(best!=null){
-            best.Chips+=gs.Pot; gs.Winner=best.Id; gs.WinReason=bestNm;
-            gs.ActionLog.Add($"🏆 {best.Nickname} thắng {gs.Pot} chips với {bestNm}!");
-            gs.Pot=0;
-            return best.Id;
+
+        // Còn dư (không có levels) → trả cho best hand
+        if(pot>0){
+            var best=active.OrderByDescending(p=>scores.TryGetValue(p.Id,out var sc)?sc.sc:-1).First();
+            best.Chips+=pot;
+            if(gs.Winner==null){gs.Winner=best.Id;gs.WinReason=scores.TryGetValue(best.Id,out var sc4)?sc4.nm:"";}
+            gs.ActionLog.Add($"🏆 {best.Nickname} thắng {pot} chips!");
+            lastWinner=best.Id;
         }
-        return "";
+
+        gs.Pot=0;
+        return lastWinner;
     }
 
     public static (int sc,string nm) BestHand(List<PokerCard> cards)
