@@ -454,18 +454,31 @@ socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('h
 
 let chessCanvas=null,chessCtx=null,CELL=0,chessState=null,myColor=null;
 let selectedSq=null,highlightedSqs=new Set(),legalFromServer={},lastMove=null;
+let _chessBoardSize=0; // Lock kích thước sau lần init đầu - tránh layout shift
+
+function _calcChessBoardSize(){
+  // Tính 1 lần dựa trên wrap container (đã có width cố định từ CSS min(560px,92vw))
+  var wrap=document.getElementById('chessBoardWrap');
+  if(!wrap)return 0;
+  // Đọc kích thước thật của wrap (không dùng window.innerWidth tránh shift do scrollbar)
+  var w=wrap.getBoundingClientRect().width||wrap.offsetWidth;
+  if(!w||w<64)w=Math.min(560,window.innerWidth*0.92);
+  return Math.floor(w/8)*8;
+}
 
 function initChessCanvas(){
   var wrap=document.getElementById('chessBoardWrap');
   if(!wrap)return;
-  // Tính từ window - KHÔNG dùng wrap.clientWidth (gây shift mỗi nước đi)
-  var size=Math.floor(Math.min(560,window.innerWidth*0.96)/8)*8;
+  var size=_chessBoardSize||_calcChessBoardSize();
+  if(!size)return;
   if(chessCanvas&&CELL===size/8)return; // size không đổi, bỏ qua
+  _chessBoardSize=size; // Lock lại, không tính lại sau mỗi nước đi
   CELL=size/8;
   if(!chessCanvas){
     chessCanvas=document.createElement('canvas');
     chessCanvas.id='chessCanvas';
-    chessCanvas.style.cssText='display:block;cursor:pointer;border-radius:4px;touch-action:none;';
+    // width/height cố định bằng style để canvas không bao giờ co giãn lại
+    chessCanvas.style.cssText='display:block;cursor:pointer;border-radius:4px;touch-action:none;width:'+size+'px;height:'+size+'px;flex-shrink:0;';
     chessCanvas.addEventListener('click',onCanvasClick);
     chessCanvas.addEventListener('touchend',function(e){
       e.preventDefault();
@@ -479,18 +492,35 @@ function initChessCanvas(){
   }
   chessCanvas.width=size;
   chessCanvas.height=size;
-  chessCanvas.style.width=size+'px';
-  chessCanvas.style.height=size+'px';
   chessCtx=chessCanvas.getContext('2d');
 }
+
+// Chỉ resize bàn cờ khi cửa sổ thực sự thay đổi kích thước (không gọi trong drawBoard)
+window.addEventListener('resize',function(){
+  if(!chessCanvas)return;
+  var newSize=_calcChessBoardSize();
+  if(newSize&&newSize!==_chessBoardSize){
+    _chessBoardSize=newSize;
+    CELL=newSize/8;
+    chessCanvas.width=newSize;
+    chessCanvas.height=newSize;
+    chessCanvas.style.width=newSize+'px';
+    chessCanvas.style.height=newSize+'px';
+    chessCtx=chessCanvas.getContext('2d');
+    if(chessState)drawBoard(chessState);
+  }
+});
 
 // ── Chess Pieces ──
 
 function drawPiece(ctx, pc, cx, cy, C) {
   var isWhite = pc[0] === 'w';
   var type = pc[1];
-  var symbols = { K:'♚', Q:'♛', R:'♜', B:'♝', N:'♞', P:'♟' };
-  var sym = symbols[type] || '♟';
+  // Dùng ký tự outline (white = rỗng) cho quân trắng, filled (black) cho quân đen
+  // Thêm \uFE0E (text variation selector) để BẮT BUỘC render dạng text, không phải emoji màu trên mobile
+  var wSymbols = { K:'♔\uFE0E', Q:'♕\uFE0E', R:'♖\uFE0E', B:'♗\uFE0E', N:'♘\uFE0E', P:'♙\uFE0E' };
+  var bSymbols = { K:'♚\uFE0E', Q:'♛\uFE0E', R:'♜\uFE0E', B:'♝\uFE0E', N:'♞\uFE0E', P:'♟\uFE0E' };
+  var sym = isWhite ? (wSymbols[type]||'♙\uFE0E') : (bSymbols[type]||'♟\uFE0E');
 
   ctx.save();
   ctx.shadowColor   = 'rgba(0,0,0,0.5)';
@@ -581,7 +611,10 @@ function drawBoard(gs){
 }
 
 function renderBoard(gs){drawBoard(gs);}
-function initChessBoard(){initChessCanvas();}
+function initChessBoard(){
+  // Chỉ init canvas 1 lần khi bắt đầu game
+  if(!chessCanvas){_chessBoardSize=0;initChessCanvas();}
+}
 
 function onCanvasClick(e){
   if(!chessCtx||!CELL)return;
@@ -701,14 +734,29 @@ socket.on('game:over',function(data){showGameOver(data.winnerId,data.winnerNickn
   document.getElementById('joinArea').classList.add('hidden');
   var myColorEl=document.getElementById('myColorLabel');
   if(myColorEl)myColorEl.textContent=myColor==='white'?'You: White (first)':'You: Black (second)';
-  requestAnimationFrame(function(){initChessCanvas();drawBoard(gameState);});
+  // Reset lock để tính lại kích thước đúng cho game mới
+  chessCanvas=null; chessCtx=null; CELL=0; _chessBoardSize=0;
+  // Xóa canvas cũ nếu còn
+  var wrap=document.getElementById('chessBoardWrap');
+  if(wrap)wrap.innerHTML='';
+  requestAnimationFrame(function(){
+    initChessCanvas();
+    drawBoard(gameState);
+    // Sync chiều cao move history = chiều cao bàn cờ + 2 timer → sidebar không bao giờ đẩy bàn
+    requestAnimationFrame(function(){
+      var col=document.getElementById('chessBoardCol');
+      var hist=document.getElementById('moveHistory');
+      if(col&&hist){hist.style.maxHeight=(col.offsetHeight-40)+'px';}
+    });
+  });
 });
 
 socket.on('game:reset',function(){
   document.getElementById('gameArea').classList.add('hidden');
   document.getElementById('lobbyArea').classList.remove('hidden');
   var o=document.getElementById('gameOverOverlay');if(o)o.classList.add('hidden');
-  chessState=null;chessCanvas=null;chessCtx=null;CELL=0;clearSelection();lastMove=null;
+  chessState=null;chessCanvas=null;chessCtx=null;CELL=0;_chessBoardSize=0;clearSelection();lastMove=null;
+  var wrap=document.getElementById('chessBoardWrap');if(wrap)wrap.innerHTML='';
 });
 
 document.getElementById('resignBtn')&&document.getElementById('resignBtn').addEventListener('click',function(){if(confirm('Resign?'))socket.emit('chess:resign',{});});
@@ -905,7 +953,6 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
 </body></html>";
 
         public static string Chess => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Chess | GameHub</title><style>{CSS}
-.chess-info{{display:flex;flex-direction:column;gap:10px;min-width:180px;}}
 .chess-timer-box{{background:var(--bg2);border:2px solid var(--br);border-radius:8px;padding:10px 14px;font-family:var(--fd);font-size:1.4rem;text-align:center;transition:all .3s;}}
 .chess-timer-box.active{{border-color:var(--ac);color:var(--ac);box-shadow:var(--glow);}}
 .chess-move{{font-family:var(--fd);font-size:.78rem;color:var(--dim);}}
@@ -913,7 +960,13 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
 .promo-btn{{background:var(--bg2);border:2px solid var(--br);border-radius:12px;padding:12px;cursor:pointer;transition:all .2s;width:88px;height:88px;display:flex;align-items:center;justify-content:center;}}
 .promo-btn:hover{{border-color:var(--ac);transform:scale(1.08);box-shadow:var(--glow);}}
 .promo-btn img{{width:60px;height:60px;}}
-#chessBoardWrap{{border-radius:6px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4);}}
+#chessBoardWrap{{border-radius:6px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4);aspect-ratio:1/1;flex-shrink:0;}}
+#chessMainLayout{{display:flex;gap:14px;justify-content:center;padding:10px 0;align-items:flex-start;flex-wrap:nowrap;}}
+#chessBoardCol{{display:flex;flex-direction:column;align-items:center;flex-shrink:0;}}
+#chessSidebar{{display:flex;flex-direction:column;gap:10px;width:200px;flex-shrink:0;}}
+#moveHistoryBox{{background:var(--bg2);border:1px solid var(--br);border-radius:8px;padding:12px;overflow:hidden;}}
+#moveHistory{{overflow-y:auto;word-break:break-all;line-height:1.8;}}
+@media(max-width:768px){{#chessSidebar{{display:none!important;}}}}
 </style></head><body>
 {Header}
 {JoinPanel("♟️", "CHESS", "#cc44ff", "chess", "Move pieces • Checkmate to win • 10 min/player")}
@@ -923,18 +976,18 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
     <div><div id=""myColorLabel"" style=""font-weight:700;color:#cc44ff;""></div><div id=""chessTurn"" class=""turn-indicator""></div><div id=""chessStatusMsg"" style=""color:var(--ac2);font-weight:700;font-size:.9rem;""></div></div>
     <button id=""resignBtn"" class=""btn btn-danger"" style=""padding:8px 14px;font-size:.82rem;"">🏳 Resign</button>
   </div>
-  <div style=""display:flex;gap:14px;flex-wrap:wrap;justify-content:center;padding:10px 0;align-items:flex-start;"">
-    <div style=""display:flex;flex-direction:column;align-items:center;"">
+  <div id=""chessMainLayout"">
+    <div id=""chessBoardCol"">
       <div style=""font-size:.75rem;color:var(--dim);margin-bottom:5px;align-self:flex-start;"" id=""oppTimeLabel"">Opponent</div>
       <div class=""chess-timer-box"" id=""oppTime"" style=""width:min(560px,92vw);text-align:center;"">10:00</div>
       <div id=""chessBoardWrap"" style=""width:min(560px,92vw);margin:6px 0;""></div>
       <div style=""font-size:.75rem;color:var(--dim);margin-bottom:5px;align-self:flex-start;"">You</div>
       <div class=""chess-timer-box active"" id=""myTime"" style=""width:min(560px,92vw);text-align:center;"">10:00</div>
     </div>
-    <div class=""chess-info"">
-      <div style=""background:var(--bg2);border:1px solid var(--br);border-radius:8px;padding:12px;"">
+    <div id=""chessSidebar"">
+      <div id=""moveHistoryBox"">
         <div style=""font-size:.73rem;color:var(--dim);margin-bottom:8px;font-family:var(--fd);"">MOVE HISTORY</div>
-        <div id=""moveHistory"" style=""max-height:300px;overflow-y:auto;word-break:break-all;line-height:1.8;""></div>
+        <div id=""moveHistory"" style=""max-height:480px;""></div>
       </div>
     </div>
   </div>
