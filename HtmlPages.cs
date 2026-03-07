@@ -458,30 +458,34 @@ let selectedSq=null,highlightedSqs=new Set(),legalFromServer={},lastMove=null;
 function initChessCanvas(){
   var wrap=document.getElementById('chessBoardWrap');
   if(!wrap)return;
-  // Tính từ window - KHÔNG dùng wrap.clientWidth (gây shift mỗi nước đi)
-  var size=Math.floor(Math.min(560,window.innerWidth*0.96)/8)*8;
-  if(chessCanvas&&CELL===size/8)return; // size không đổi, bỏ qua
+  // Use wrap's actual rendered width for perfect alignment on all devices
+  var rawSize=wrap.getBoundingClientRect().width||wrap.offsetWidth||Math.min(560,window.innerWidth*0.92);
+  var size=Math.floor(rawSize/8)*8;
+  if(size<160)size=Math.floor(Math.min(560,window.innerWidth*0.92)/8)*8;
+  if(chessCanvas&&CELL===size/8)return;
   CELL=size/8;
+  var dpr=window.devicePixelRatio||1;
   if(!chessCanvas){
     chessCanvas=document.createElement('canvas');
     chessCanvas.id='chessCanvas';
-    chessCanvas.style.cssText='display:block;cursor:pointer;border-radius:4px;touch-action:none;';
-    chessCanvas.addEventListener('click',onCanvasClick);
-    chessCanvas.addEventListener('touchend',function(e){
+    chessCanvas.style.cssText='display:block;cursor:pointer;border-radius:4px;touch-action:none;-webkit-tap-highlight-color:transparent;';
+    // Use pointerdown for reliable mobile tap (works on all devices)
+    chessCanvas.addEventListener('pointerdown',function(e){
       e.preventDefault();
-      var t=e.changedTouches[0];
       var r=chessCanvas.getBoundingClientRect();
-      var x=Math.floor((t.clientX-r.left)/r.width*8);
-      var y=Math.floor((t.clientY-r.top)/r.height*8);
+      var x=Math.floor((e.clientX-r.left)/r.width*8);
+      var y=Math.floor((e.clientY-r.top)/r.height*8);
       if(x>=0&&x<8&&y>=0&&y<8){var sq=myColor==='black'?(7-y)*8+(7-x):y*8+x;onSquareClick(sq);}
     },{passive:false});
     wrap.appendChild(chessCanvas);
   }
-  chessCanvas.width=size;
-  chessCanvas.height=size;
+  // Canvas internal resolution = CSS size × DPR (sharp on retina/mobile)
+  chessCanvas.width=size*dpr;
+  chessCanvas.height=size*dpr;
   chessCanvas.style.width=size+'px';
   chessCanvas.style.height=size+'px';
   chessCtx=chessCanvas.getContext('2d');
+  chessCtx.setTransform(dpr,0,0,dpr,0,0);
 }
 
 // ── Chess Pieces ──
@@ -913,7 +917,7 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
 .promo-btn{{background:var(--bg2);border:2px solid var(--br);border-radius:12px;padding:12px;cursor:pointer;transition:all .2s;width:88px;height:88px;display:flex;align-items:center;justify-content:center;}}
 .promo-btn:hover{{border-color:var(--ac);transform:scale(1.08);box-shadow:var(--glow);}}
 .promo-btn img{{width:60px;height:60px;}}
-#chessBoardWrap{{border-radius:6px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4);}}
+#chessBoardWrap{{border-radius:6px;overflow:visible;box-shadow:0 8px 32px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4);}}
 </style></head><body>
 {Header}
 {JoinPanel("♟️", "CHESS", "#cc44ff", "chess", "Move pieces • Checkmate to win • 10 min/player")}
