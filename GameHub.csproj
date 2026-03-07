@@ -5,4 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>GameHub</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <Content Include="wordchain_dict.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>
