@@ -469,83 +469,46 @@ function initChessCanvas(){
   chessCtx=chessCanvas.getContext('2d');
 }
 
-// ── Chess Pieces: SVG Staunton rendered via canvas ──
-var _pieceCache={};
-
-function _pieceSVG(color,type){
-  var w=color==='w';
-  var fill=w?'#f0d9b5':'#1a1a1a';
-  var stroke=w?'#b58863':'#e8d5b0';
-  var sw='1.5';
-  var g0='<g fill=\''+fill+'\' stroke=\''+stroke+'\' stroke-width=\''+sw+'\' stroke-linecap=\'round\' stroke-linejoin=\'round\'>';
-  var g1='</g>';
-  var K=g0
-    +'<path d=\'M22.5 11.63V6M20 8h5\' stroke-width=\'1.6\'/>'
-    +'<path d=\'M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5\'/>'
-    +'<path d=\'M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V17s-3.5-7 0-10c0 0-3 0-5 4.5-2 4.5 0 10 0 10v6.5c-2.5-7.5-12-10.5-16-4-3 6 5 10 5 10V37z\'/>'
-    +'<path d=\'M20 34.5c-5 1.5-8 1-11 0m23 0c5 1.5 8 1 11 0\' fill=\'none\'/>'
-    +g1;
-  var Q=g0
-    +'<circle cx=\'6\' cy=\'12\' r=\'2.75\'/><circle cx=\'14\' cy=\'9\' r=\'2.75\'/><circle cx=\'22.5\' cy=\'8\' r=\'2.75\'/><circle cx=\'31\' cy=\'9\' r=\'2.75\'/><circle cx=\'39\' cy=\'12\' r=\'2.75\'/>'
-    +'<path d=\'M9 26c8.5-8.5 15.5-8.5 27 0l2.5-12.5L31 25l-.3-14.1-8.2 13.4-8.2-13.5L14 25 6.5 13.5 9 26z\'/>'
-    +'<path d=\'M9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1 2.5-1 2.5 6.5 3 16 3 22.5 0 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4\'/>'
-    +'<path d=\'M11.5 30c3.5-1 18.5-1 22 0m-22.5 3.5c1.5-.5 20.5-.5 22 0m-22.5 2.5c5.5-1.5 15.5-1.5 21 0\' fill=\'none\'/>'
-    +g1;
-  var R=g0
-    +'<path d=\'M9 39h27v-3H9v3zm3-3v-4h21v4H12zm-1-22V9h4v2h5V9h5v2h5V9h4v5\'/>'
-    +'<path d=\'M34 14l-3 3H14l-3-3\'/>'
-    +'<path d=\'M31 17v12.5H14V17h17z\' stroke-linejoin=\'miter\'/>'
-    +'<path d=\'M31 29.5l1.5 2.5h-21l1.5-2.5\'/>'
-    +'<path d=\'M11 14h23\' fill=\'none\' stroke-linejoin=\'miter\'/>'
-    +g1;
-  var B=g0
-    +'<path d=\'M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.35.49-2.32.47-3-.5 1.35-1.46 3-2 3-2z\'/>'
-    +'<path d=\'M15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2z\'/>'
-    +'<path d=\'M25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z\'/>'
-    +'<path d=\'M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5\' fill=\'none\' stroke-width=\'1.5\' stroke-linejoin=\'miter\'/>'
-    +g1;
-  var N=g0
-    +'<path d=\'M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21\'/>'
-    +'<path d=\'M24 18c.38 5.12-2.6 11.5-5.5 14.5H35c-3-4-5-12.5-8-17z\' stroke-width=\'1.5\' stroke-linejoin=\'miter\'/>'
-    +'<path d=\'M9.5 25.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13z\'/>'
-    +'<path d=\'M9.5 12.5c-1.5 1-2 1-3.5.5M9.5 12.5l1 1.5M14 9.5l-1 2M14 9.5l-2.5 1\' stroke-width=\'1.5\'/>'
-    +'<circle cx=\'6\' cy=\'12\' r=\'2\' fill=\''+stroke+'\'/>'
-    +g1;
-  var P=g0
-    +'<path d=\'M22.5 9a4 4 0 1 1-8 0 4 4 0 0 1 8 0z\'/>'
-    +'<path d=\'M22.5 15.5c4.5 3.5 6 7.5 4 16.5H14c-2-9-.5-13 4-16.5z\'/>'
-    +'<path d=\'M11.5 37c5.5 2.5 15.5 2.5 21 0\'/>'
-    +g1;
-  var parts={K:K,Q:Q,R:R,B:B,N:N,P:P};
-  return '<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 45 45\'>'+(parts[type]||P)+'</svg>';
-}
-
-function getPieceImg(key){
-  if(_pieceCache[key])return _pieceCache[key];
-  var svg=_pieceSVG(key[0],key[1]);
-  var url='data:image/svg+xml,'+encodeURIComponent(svg);
-  var img=new Image();
-  img.src=url;
-  _pieceCache[key]=img;
-  return img;
-}
+// ── Chess Pieces: Unicode symbols rendered via canvas ──
+var _UNICODE = {
+  wK:'\u2654', wQ:'\u2655', wR:'\u2656', wB:'\u2657', wN:'\u2658', wP:'\u2659',
+  bK:'\u265a', bQ:'\u265b', bR:'\u265c', bB:'\u265d', bN:'\u265e', bP:'\u265f'
+};
 
 function drawPiece(ctx,pc,cx,cy,C){
-  var key=pc[0]+pc[1];
-  var img=getPieceImg(key);
-  var pad=C*0.04;
-  var sz=C-pad*2;
-  if(img.complete&&img.naturalWidth>0){
-    ctx.save();
-    ctx.shadowColor='rgba(0,0,0,0.5)';
-    ctx.shadowBlur=sz*0.12;
-    ctx.shadowOffsetX=sz*0.04;
-    ctx.shadowOffsetY=sz*0.07;
-    ctx.drawImage(img,cx-sz/2,cy-sz/2,sz,sz);
-    ctx.restore();
+  var sym=_UNICODE[pc[0]+pc[1]];
+  if(!sym)return;
+  var isWhite=pc[0]==='w';
+  var sz=Math.floor(C*0.82);
+  ctx.save();
+  ctx.font='bold '+sz+'px serif';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  // Drop shadow
+  ctx.shadowColor='rgba(0,0,0,0.55)';
+  ctx.shadowBlur=sz*0.10;
+  ctx.shadowOffsetX=sz*0.04;
+  ctx.shadowOffsetY=sz*0.06;
+  if(isWhite){
+    // White: fill cream, strong dark outline
+    ctx.strokeStyle='#4a3000';
+    ctx.lineWidth=sz*0.10;
+    ctx.lineJoin='round';
+    ctx.strokeText(sym,cx,cy+sz*0.04);
+    ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
+    ctx.fillStyle='#fff8e8';
+    ctx.fillText(sym,cx,cy+sz*0.04);
   } else {
-    img.onload=function(){if(chessState)drawBoard(chessState);};
+    // Black: fill dark, light outline
+    ctx.strokeStyle='#e8d5b0';
+    ctx.lineWidth=sz*0.08;
+    ctx.lineJoin='round';
+    ctx.strokeText(sym,cx,cy+sz*0.04);
+    ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
+    ctx.fillStyle='#1a1008';
+    ctx.fillText(sym,cx,cy+sz*0.04);
   }
+  ctx.restore();
 }
 
 function drawBoard(gs){
@@ -662,11 +625,10 @@ function showPromoDialog(from,to){
     if(btn){
       var key=side+p;
       var label={Q:'Queen',R:'Rook',B:'Bishop',N:'Knight'}[p];
-      var pimg=getPieceImg(key);
       btn.innerHTML='';
       var pcv=document.createElement('canvas');pcv.width=64;pcv.height=64;
       var pcx=pcv.getContext('2d');
-      (function(im,cx2){function d(){if(im.complete&&im.naturalWidth>0){cx2.clearRect(0,0,64,64);cx2.save();cx2.shadowColor='rgba(0,0,0,.4)';cx2.shadowBlur=4;cx2.drawImage(im,3,3,58,58);cx2.restore();}else{im.onload=d;}}d();})(pimg,pcx);
+      drawPiece(pcx,key,32,32,64);
       pcv.title=label;pcv.style.cssText='cursor:pointer;border-radius:8px;';
       btn.appendChild(pcv);
       btn.title=label;
