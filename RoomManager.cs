@@ -18,7 +18,8 @@ public class RoomManager
         ["pong"]      = new() { MaxPlayers = 2, MinPlayers = 2 },
         ["chess"]     = new() { MaxPlayers = 2, MinPlayers = 2 },
         ["mathquiz"]  = new() { MaxPlayers = 4, MinPlayers = 2 },
-        ["poker"]     = new() { MaxPlayers = 6, MinPlayers = 2 }
+        ["poker"]     = new() { MaxPlayers = 6, MinPlayers = 2 },
+        ["wordchain"] = new() { MaxPlayers = 8, MinPlayers = 2 }
     };
 
     // ── Room code generation ──────────────────────────────────
@@ -103,7 +104,7 @@ public class RoomManager
 
     public Dictionary<string, int> GetOnlineCountByGame()
     {
-        var counts = new Dictionary<string, int> { ["tictactoe"]=0,["snake"]=0,["pong"]=0,["chess"]=0,["mathquiz"]=0,["poker"]=0 };
+        var counts = new Dictionary<string, int> { ["tictactoe"]=0,["snake"]=0,["pong"]=0,["chess"]=0,["mathquiz"]=0,["poker"]=0,["wordchain"]=0 };
         foreach (var room in _rooms.Values)
             if ((room.State == "PLAYING" || room.State == "WAITING") && counts.ContainsKey(room.GameType))
                 counts[room.GameType] += room.Players.Count;

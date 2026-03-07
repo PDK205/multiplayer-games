@@ -51,13 +51,43 @@ public class TttPlayer
 
 public class TttGameState
 {
-    public string?[] Board { get; set; } = new string?[9];
+    public const int Size = 15;
+    public string?[] Board { get; set; } = new string?[Size * Size];
     public string CurrentTurn { get; set; } = "";
     public List<TttPlayer> Players { get; set; } = new();
     public string? Winner { get; set; }
     public bool IsDraw { get; set; } = false;
     public int MoveCount { get; set; } = 0;
-    public int[]? WinLine { get; set; }
+    public int[]? WinLine { get; set; } // 5 winning cell indices
+}
+
+// ══════════════════════════════════════════
+//  WORD CHAIN MODELS
+// ══════════════════════════════════════════
+public class WordChainPlayer
+{
+    public string Id { get; set; } = "";
+    public string Nickname { get; set; } = "";
+    public string Color { get; set; } = "";
+    public int Score { get; set; } = 0;
+    public bool IsEliminated { get; set; } = false;
+}
+
+public class WordChainGameState
+{
+    public List<WordChainPlayer> Players { get; set; } = new();
+    public List<string> UsedWords { get; set; } = new();
+    public string? LastWord { get; set; }
+    public string? LastSyllable { get; set; } // tiếng cuối của từ trước
+    public string CurrentTurn { get; set; } = ""; // playerId
+    public int TurnTimeLimit { get; set; } = 30; // seconds
+    public long TurnStartedAt { get; set; } = 0;
+    public bool GameOver { get; set; } = false;
+    public string? Winner { get; set; }
+    public string? WinReason { get; set; }
+    public int Round { get; set; } = 1;
+    public List<string> ChatLog { get; set; } = new();
+    public int TimeLimit { get; set; } = 30; // current time limit (decreases)
 }
 
 // ══════════════════════════════════════════

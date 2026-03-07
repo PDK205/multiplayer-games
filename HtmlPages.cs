@@ -86,14 +86,14 @@ canvas{border-radius:8px;border:1px solid var(--br);display:block;max-width:100%
 .result-rank{font-family:var(--fd);font-size:.78rem;width:26px;text-align:center;color:var(--dim)}
 .result-rank.gold{color:var(--ac4)}
 .result-score{margin-left:auto;font-weight:700;font-family:var(--fd)}
-.ttt-board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:min(340px,90vw);margin:20px auto;padding:18px}
-.ttt-cell{aspect-ratio:1;background:var(--bg3);border:1px solid var(--br);border-radius:10px;cursor:pointer;font-family:var(--fd);font-size:clamp(1.8rem,8vw,2.8rem);font-weight:700;transition:all .2s;display:flex;align-items:center;justify-content:center;color:var(--tx);-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
-.ttt-cell:hover:not(.taken){background:var(--bg2);border-color:var(--ac)}
+.ttt-board{display:grid;grid-template-columns:repeat(15,1fr);gap:2px;max-width:min(600px,97vw);margin:10px auto;padding:8px;background:var(--bg2);border-radius:8px;border:2px solid var(--br);}
+.ttt-cell{aspect-ratio:1;background:var(--bg3);border:1px solid rgba(255,255,255,0.07);border-radius:3px;cursor:pointer;font-size:clamp(.6rem,2.5vw,1rem);font-weight:800;transition:background .15s;display:flex;align-items:center;justify-content:center;color:var(--tx);-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.ttt-cell:hover:not(.taken){background:rgba(255,255,255,0.1);border-color:var(--ac)}
 .ttt-cell.taken{cursor:not-allowed}
 .ttt-cell.symbol-X{color:var(--ac)}
 .ttt-cell.symbol-O{color:var(--ac2)}
-.ttt-cell.winning{background:rgba(0,255,136,.1);border-color:var(--ac);animation:winPulse .5s ease 3}
-.ttt-cell.winning.symbol-O{background:rgba(255,68,102,.1);border-color:var(--ac2)}
+.ttt-cell.winning{background:rgba(0,255,136,.25);border-color:var(--ac);animation:winPulse .5s ease 3}
+.ttt-cell.winning.symbol-O{background:rgba(255,68,102,.2);border-color:var(--ac2)}
 .turn-indicator{text-align:center;font-family:var(--fd);font-size:.88rem;color:var(--dim);padding:9px}
 .turn-indicator span{color:var(--ac);font-weight:700}
 .draw-layout{display:grid;grid-template-columns:1fr 260px;gap:0;height:calc(100vh - 58px)}
@@ -144,8 +144,8 @@ canvas{border-radius:8px;border:1px solid var(--br);display:block;max-width:100%
   .math-container{margin:16px auto;padding:0 12px;}
   .math-question{font-size:2.2rem;padding:20px 12px;}
   .math-input{font-size:1.2rem;padding:10px 14px;}
-  .ttt-board{max-width:96vw;padding:10px;gap:6px;}
-  .ttt-cell{font-size:2.2rem;}
+  .ttt-board{max-width:98vw;padding:4px;gap:1px;}
+  .ttt-cell{font-size:.55rem;}
   .lobby-container{padding:0 10px;margin:14px auto;}
   .room-code{font-size:1.2rem;}
   .btn{padding:10px 14px;font-size:.9rem;}
@@ -181,7 +181,8 @@ const socket = {
       'chess:getSquareMoves': 'ChessGetLegalMoves',
       'chess:resign': 'ChessResign',
       'room:playVsBot': 'RoomPlayVsBot',
-      'poker:action': 'PokerAction'
+      'poker:action': 'PokerAction',
+      'wordchain:submit': 'WordChainSubmit'
     };
     const methodName = map[event] || event;
     const payload = args[0];
@@ -204,6 +205,7 @@ const socket = {
       else if (event === 'chess:resign') callArgs = [];
       else if (event === 'room:playVsBot') callArgs = [payload.gameType, payload.difficulty||'medium'];
       else if (event === 'poker:action') callArgs = [payload.action, payload.amount||0];
+      else if (event === 'wordchain:submit') callArgs = [payload.word];
       else callArgs = [payload];
     }
     connection.invoke(methodName, ...callArgs).catch(e => console.error(event, e));
@@ -316,12 +318,13 @@ function showGameOver(winnerId,winnerNickname,players){
 }";
 
     private const string TttJS = @"
+const CARO_SIZE=15;
 let tttState=null;
-function initBoard(){const b=document.getElementById('tttBoard');b.innerHTML='';for(let i=0;i<9;i++){const c=document.createElement('div');c.className='ttt-cell';c.dataset.index=i;c.addEventListener('click',()=>{if(tttState&&tttState.currentTurn===window.currentPlayer?.id)socket.emit('tictactoe:move',{cellIndex:i});else showToast('Chưa đến lượt bạn!','error');});b.appendChild(c);}}
+function initBoard(){const b=document.getElementById('tttBoard');b.innerHTML='';for(let i=0;i<CARO_SIZE*CARO_SIZE;i++){const c=document.createElement('div');c.className='ttt-cell';c.dataset.index=i;c.addEventListener('click',()=>{if(tttState&&tttState.currentTurn===window.currentPlayer?.id)socket.emit('tictactoe:move',{cellIndex:i});else showToast('Chưa đến lượt bạn!','error');});b.appendChild(c);}}
 function renderBoard(gs){tttState=gs;const cells=document.querySelectorAll('.ttt-cell');gs.board.forEach((v,i)=>{const c=cells[i];if(v){c.textContent=v;c.classList.add('taken','symbol-'+v);}else{c.textContent='';c.className='ttt-cell';}});if(gs.winLine)gs.winLine.forEach(i=>cells[i].classList.add('winning'));updateTurnInfo(gs);}
 function updateTurnInfo(gs){const e=document.getElementById('turnIndicator');if(!e)return;if(gs.winner||gs.isDraw){e.innerHTML=gs.isDraw?'🤝 Hòa!':'';return;}const cp=gs.players.find(p=>p.id===gs.currentTurn);if(!cp)return;if(gs.currentTurn===window.currentPlayer?.id){e.innerHTML='Lượt của bạn <span>('+gs.players.find(p=>p.id===window.currentPlayer.id)?.symbol+')</span>';e.style.color='var(--ac)';}else{e.innerHTML='Lượt của <span>'+cp.nickname+'</span>';e.style.color='var(--dim)';}}
 function updateTTTScore(gs){const e=document.getElementById('scoreboard');if(!e||!gs.players)return;e.innerHTML=gs.players.map(p=>'<div class=""score-item""><div class=""player-avatar"" style=""background:'+(p.color||'#888')+';width:28px;height:28px;font-size:.75rem;"">'+p.nickname.charAt(0).toUpperCase()+'</div><div><div class=""score-name"">'+p.nickname+' ('+p.symbol+')</div><div class=""score-value"" style=""color:'+(p.symbol==='X'?'var(--ac)':'var(--ac2)')+'"">'+(p.score||0)+'</div></div></div>').join('');}
-(window._gameStartHandlers=window._gameStartHandlers||[]).push(({gameType,gameState})=>{if(gameType!=='tictactoe')return;document.getElementById('lobbyArea').classList.add('hidden');document.getElementById('gameArea').classList.remove('hidden');document.getElementById('joinArea').classList.add('hidden');initBoard();renderBoard(gameState);updateTTTScore(gameState);const my=gameState.players.find(p=>p.id===window.currentPlayer?.id);if(my)showToast('Bạn là '+my.symbol,'info');});
+(window._gameStartHandlers=window._gameStartHandlers||[]).push(({gameType,gameState})=>{if(gameType!=='tictactoe')return;document.getElementById('lobbyArea').classList.add('hidden');document.getElementById('gameArea').classList.remove('hidden');document.getElementById('joinArea').classList.add('hidden');initBoard();renderBoard(gameState);updateTTTScore(gameState);const my=gameState.players.find(p=>p.id===window.currentPlayer?.id);if(my)showToast('Bạn là '+my.symbol+' — 5 liên tiếp để thắng!','info');});
 socket.on('tictactoe:updated',({gameState})=>{renderBoard(gameState);updateTTTScore(gameState);});
 socket.on('game:over',({winnerId,winnerNickname,players,gameState})=>{if(gameState){renderBoard(gameState);updateTTTScore(gameState);}showGameOver(winnerId,winnerNickname,players);});
 socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('hidden');document.getElementById('lobbyArea').classList.remove('hidden');const o=document.getElementById('gameOverOverlay');if(o)o.classList.add('hidden');tttState=null;});";
@@ -841,12 +844,13 @@ socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('h
   <p style=""color:var(--dim);font-size:.95rem;"">5 games • Chơi ngay không cần đăng ký • Real-time</p>
 </div>
 <main class=""games-grid"">
-  <a href=""/tictactoe"" class=""game-card"" style=""--cc:#00ff88;""><span class=""game-icon"">⭕</span><div class=""game-title"">TIC-TAC-TOE</div><div class=""game-desc"">2 người • X vs O • Cổ điển</div><div class=""game-online""><span class=""online-dot""></span><span id=""online-tictactoe"">0</span> người đang chơi</div></a>
+  <a href=""/tictactoe"" class=""game-card"" style=""--cc:#00ff88;""><span class=""game-icon"">⬜</span><div class=""game-title"">CỜ CARO</div><div class=""game-desc"">2 người • X vs O • 15×15 • 5 liên tiếp thắng</div><div class=""game-online""><span class=""online-dot""></span><span id=""online-tictactoe"">0</span> người đang chơi</div></a>
   <a href=""/snake"" class=""game-card"" style=""--cc:#ffaa00;""><span class=""game-icon"">🐍</span><div class=""game-title"">SNAKE BATTLE</div><div class=""game-desc"">2-4 người • Ăn mồi • Last standing</div><div class=""game-online""><span class=""online-dot"" style=""background:var(--ac4);box-shadow:0 0 6px var(--ac4)""></span><span id=""online-snake"">0</span> người đang chơi</div></a>
   <a href=""/pong"" class=""game-card"" style=""--cc:#4488ff;""><span class=""game-icon"">🏓</span><div class=""game-title"">PONG</div><div class=""game-desc"">2 người • Paddle • First to 5</div><div class=""game-online""><span class=""online-dot"" style=""background:var(--ac3);box-shadow:0 0 6px var(--ac3)""></span><span id=""online-pong"">0</span> người đang chơi</div></a>
   <a href=""/chess"" class=""game-card"" style=""--cc:#cc44ff;""><span class=""game-icon"">♟️</span><div class=""game-title"">CHESS</div><div class=""game-desc"">2 players • Chess • Checkmate</div><div class=""game-online""><span class=""online-dot"" style=""background:#cc44ff;box-shadow:0 0 6px #cc44ff""></span><span id=""online-chess"">0</span> playing</div></a>
   <a href=""/mathquiz"" class=""game-card"" style=""--cc:#ff4466;""><span class=""game-icon"">🧮</span><div class=""game-title"">QUICK MATH</div><div class=""game-desc"">2-4 người • Trả lời nhanh • +điểm</div><div class=""game-online""><span class=""online-dot"" style=""background:var(--ac2);box-shadow:0 0 6px var(--ac2)""></span><span id=""online-mathquiz"">0</span> người đang chơi</div></a>
   <a href=""/poker"" class=""game-card"" style=""--cc:#ff9944;""><span class=""game-icon"">🃏</span><div class=""game-title"">POKER</div><div class=""game-desc"">2 người • Texas Hold'em • Chips</div><div class=""game-online""><span class=""online-dot"" style=""background:#ff9944;box-shadow:0 0 6px #ff9944""></span><span id=""online-poker"">0</span> người đang chơi</div></a>
+  <a href=""/wordchain"" class=""game-card"" style=""--cc:#44ddff;""><span class=""game-icon"">🔤</span><div class=""game-title"">NỐI TỪ</div><div class=""game-desc"">2–8 người • Tiếng Việt • Nối từ liên tiếp</div><div class=""game-online""><span class=""online-dot"" style=""background:#44ddff;box-shadow:0 0 6px #44ddff""></span><span id=""online-wordchain"">0</span> người đang chơi</div></a>
 </main>
 <footer style=""text-align:center;padding:26px;color:var(--dim);font-size:.78rem;position:relative;z-index:1;"">Mở nhiều tab để chơi multiplayer • ASP.NET Core SignalR Real-time</footer>
 {SignalRScripts}
@@ -859,14 +863,14 @@ ni.addEventListener('keydown',e=>{{if(e.key==='Enter')document.getElementById('j
 document.getElementById('joinBtn').addEventListener('click',()=>{{const n=ni.value.trim();if(!n){{showToast('Vui lòng nhập nickname!','error');ni.focus();return;}}registerPlayer(n,cp.value);document.getElementById('nickForm').style.display='none';document.getElementById('playerInfo').style.display='flex';}});
 document.getElementById('changeNickBtn').addEventListener('click',()=>{{document.getElementById('playerInfo').style.display='none';document.getElementById('nickForm').style.display='flex';ni.focus();}});
 connection.onreconnected(()=>{{const s=initPlayer();if(s.nickname){{registerPlayer(s.nickname,s.color);document.getElementById('nickForm').style.display='none';document.getElementById('playerInfo').style.display='flex';}}}});
-socket.on('stats:online',counts=>{{document.getElementById('online-tictactoe').textContent=counts.tictactoe||0;document.getElementById('online-snake').textContent=counts.snake||0;document.getElementById('online-pong').textContent=counts.pong||0;document.getElementById('online-chess').textContent=counts.chess||0;document.getElementById('online-mathquiz').textContent=counts.mathquiz||0;}});
+socket.on('stats:online',counts=>{{document.getElementById('online-tictactoe').textContent=counts.tictactoe||0;document.getElementById('online-snake').textContent=counts.snake||0;document.getElementById('online-pong').textContent=counts.pong||0;document.getElementById('online-chess').textContent=counts.chess||0;document.getElementById('online-mathquiz').textContent=counts.mathquiz||0;const wc=document.getElementById('online-wordchain');if(wc)wc.textContent=counts.wordchain||0;}});
 document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=>{{if(!localStorage.getItem('playerNickname')){{e.preventDefault();showToast('Vui lòng nhập nickname trước!','error');ni.focus();}}}}));
 </script></body></html>";
 
-    public static string TicTacToe => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Tic-Tac-Toe | GameHub</title><style>{CSS}</style></head><body>
+    public static string TicTacToe => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Cờ Caro | GameHub</title><style>{CSS}</style></head><body>
 {Header}
-{JoinPanel("⭕", "TIC-TAC-TOE", "var(--ac)", "tictactoe", "Click ô trống để đánh • 3 liên tiếp thắng")}
-{LobbyPanel("⭕", "TIC-TAC-TOE", "var(--ac)", 2)}
+{JoinPanel("⬜", "CỜ CARO", "var(--ac)", "tictactoe", "Bảng 15×15 • Đánh X hoặc O • 5 ô liên tiếp là thắng")}
+{LobbyPanel("⬜", "CỜ CARO", "var(--ac)", 2)}
 <div id=""gameArea"" class=""hidden"">
   <div class=""game-header""><div class=""scoreboard"" id=""scoreboard""></div><div id=""turnIndicator"" class=""turn-indicator""></div></div>
   <div class=""ttt-board"" id=""tttBoard""></div>
@@ -1272,6 +1276,154 @@ input[type=number].pk-num{{background:#0a100a;border:1px solid #2a3a2a;color:#90
 </div>
 {GameOverOverlay}
 {BaseScripts(PokerJS, "poker")}
+</body></html>";
+
+    // ══════════════════════════════════════════
+    //  WORD CHAIN PAGE
+    // ══════════════════════════════════════════
+    private const string WordChainJS = @"
+const WORD_CHAIN_VERSION = 2;
+let wcState=null;
+function wcInit(gs){ wcState=gs; wcRender(gs); }
+function wcRender(gs){
+  wcState=gs;
+  const pb=document.getElementById('wcPlayers');
+  if(pb)pb.innerHTML=gs.players.map(p=>{
+    const isMe=p.id===window.currentPlayer?.id;
+    const isTurn=p.id===gs.currentTurn;
+    return '<div class=""wc-player'+(p.isEliminated?' eliminated':'')+(isTurn?' active-turn':'')+'"" style=""border-color:'+(isTurn?'var(--ac)':'rgba(255,255,255,.1)')+'"">'+
+      '<div class=""player-avatar"" style=""background:'+(p.color||'#888')+'"">'+p.nickname.charAt(0).toUpperCase()+'</div>'+
+      '<div><div class=""score-name"">'+(isMe?'👤 ':'')+(p.isEliminated?'💀 ':'')+p.nickname+'</div>'+
+      '<div class=""score-value"" style=""color:var(--ac)"">'+p.score+' điểm</div></div>'+
+      (isTurn&&!p.isEliminated?'<span class=""wc-turn-badge"">⏳ Đang đánh</span>':'')+
+      '</div>';
+  }).join('');
+  const cl=document.getElementById('wcLog');
+  if(cl){
+    cl.innerHTML=gs.chatLog.map(l=>{
+      const cls=l.startsWith('✅')?'log-ok':l.startsWith('❌')?'log-err':l.startsWith('💀')?'log-dead':l.startsWith('🏆')?'log-win':l.startsWith('⚡')?'log-warn':'';
+      return '<div class=""wc-log-line '+cls+'"">'+l+'</div>';
+    }).join('');
+    cl.scrollTop=cl.scrollHeight;
+  }
+  const ti=document.getElementById('turnIndicator');
+  if(ti){
+    if(gs.gameOver){ti.innerHTML='🏁 Trò chơi kết thúc!';ti.style.color='var(--ac)';}
+    else if(gs.currentTurn===window.currentPlayer?.id){
+      ti.innerHTML='✍️ Lượt của bạn! Nhập từ bắt đầu bằng: <strong style=""color:var(--ac);font-size:1.3em"">'+gs.lastSyllable+'</strong>';
+      ti.style.color='var(--ac)';
+      document.getElementById('wcInput')?.focus();
+    } else {
+      const cur=gs.players.find(p=>p.id===gs.currentTurn&&!p.isEliminated);
+      const who = cur ? cur.nickname : '?';
+      const isBot = who.includes('Bot') || who.includes('🤖');
+      ti.innerHTML=(isBot?'🤖 ':'⏳ ')+'Lượt của <b>'+who+'</b> — Cần từ bắt đầu: <strong style=""color:var(--ac2)"">'+gs.lastSyllable+'</strong>';
+      ti.style.color='var(--dim)';
+    }
+  }
+  const lw=document.getElementById('wcLastWord');
+  if(lw&&gs.lastWord)lw.innerHTML='Từ vừa đánh: <span style=""color:var(--ac);font-size:1.3em;font-weight:800"">'+gs.lastWord+'</span>';
+  const inp=document.getElementById('wcInput');
+  if(inp&&gs.lastSyllable){
+    inp.placeholder=gs.lastSyllable+' ...';
+    const isMyTurn=gs.currentTurn===window.currentPlayer?.id&&!gs.gameOver;
+    inp.disabled=!isMyTurn;
+    document.getElementById('wcSendBtn').disabled=!isMyTurn;
+  }
+}
+function wcSubmit(){
+  const inp=document.getElementById('wcInput');
+  const word=(inp?.value||'').trim();
+  if(!word){showToast('Hãy nhập một từ!','error');return;}
+  if(wcState&&wcState.currentTurn!==window.currentPlayer?.id){showToast('Chưa đến lượt của bạn!','error');return;}
+  socket.emit('wordchain:submit',{word});
+  if(inp)inp.value='';
+}
+(window._gameStartHandlers=window._gameStartHandlers||[]).push(({gameType,gameState})=>{
+  if(gameType!=='wordchain')return;
+  document.getElementById('lobbyArea').classList.add('hidden');
+  document.getElementById('gameArea').classList.remove('hidden');
+  document.getElementById('joinArea').classList.add('hidden');
+  wcInit(gameState);
+  showToast('Trò chơi bắt đầu! Quy tắc: từ ghép 2+ tiếng, nối tiếng cuối','info');
+});
+socket.on('wordchain:updated',(data)=>{ wcRender(data.gameState||data); });
+socket.on('wordchain:timer',({remaining,currentTurn})=>{
+  const tb=document.getElementById('wcTimer');
+  if(!tb)return;
+  tb.textContent=remaining+'s';
+  tb.style.color=remaining<=5?'var(--ac2)':remaining<=10?'#ffaa00':'var(--ac)';
+  tb.style.transform=remaining<=5?'scale(1.15)':'scale(1)';
+});
+socket.on('game:error',(data)=>{ showToast(data.message||'Lỗi','error'); });
+socket.on('game:over',({winnerId,winnerNickname,players,gameState})=>{
+  if(gameState)wcRender(gameState);
+  showGameOver(winnerId,winnerNickname,players);
+});
+socket.on('game:reset',()=>{
+  document.getElementById('gameArea').classList.add('hidden');
+  document.getElementById('lobbyArea').classList.remove('hidden');
+  const o=document.getElementById('gameOverOverlay');if(o)o.classList.add('hidden');
+  wcState=null;
+});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.activeElement?.id==='wcInput')wcSubmit();});";
+
+    private static string WordChainCSS => @"
+.wc-layout{display:grid;grid-template-columns:1fr;gap:12px;max-width:700px;margin:0 auto;padding:10px;}
+.wc-players{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:4px 0;}
+.wc-player{display:flex;align-items:center;gap:8px;background:var(--bg2);border:2px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 12px;transition:all .3s;position:relative;min-width:140px;}
+.wc-player.active-turn{background:rgba(0,255,136,.08);animation:wcGlow .9s ease-in-out infinite alternate;}
+.wc-player.eliminated{opacity:.35;filter:grayscale(1);text-decoration:line-through;}
+.wc-turn-badge{position:absolute;top:-9px;right:6px;background:var(--ac);color:#000;font-size:.6rem;font-weight:800;padding:2px 7px;border-radius:99px;white-space:nowrap;}
+@keyframes wcGlow{from{box-shadow:0 0 4px var(--ac);}to{box-shadow:0 0 20px var(--ac),0 0 4px var(--ac);}}
+.wc-center{text-align:center;padding:8px;}
+.wc-last-word{font-size:.95rem;color:var(--dim);margin-bottom:4px;min-height:24px;}
+#wcTimer{font-size:2.2rem;font-weight:900;display:block;margin:2px 0;transition:transform .2s,color .3s;letter-spacing:1px;}
+.wc-input-row{display:flex;gap:8px;max-width:500px;margin:8px auto 0;}
+.wc-input{flex:1;background:var(--bg2);border:2px solid var(--br);border-radius:8px;color:var(--tx);padding:10px 14px;font-size:1rem;transition:border-color .2s;}
+.wc-input:focus{outline:none;border-color:var(--ac);}
+.wc-input:disabled{opacity:.4;cursor:not-allowed;}
+.wc-btn{background:var(--ac);color:#000;border:none;border-radius:8px;padding:10px 18px;font-weight:800;cursor:pointer;font-size:1rem;transition:opacity .2s;}
+.wc-btn:disabled{opacity:.35;cursor:not-allowed;}
+.wc-log{background:var(--bg2);border-radius:10px;padding:10px 12px;max-height:200px;overflow-y:auto;font-size:.84rem;line-height:1.5;}
+.wc-log-line{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.wc-log-line.log-ok{color:#88ffbb;}
+.wc-log-line.log-err{color:#ff6677;}
+.wc-log-line.log-dead{color:#ff4444;}
+.wc-log-line.log-win{color:#ffd700;font-weight:700;}
+.wc-log-line.log-warn{color:#ffaa00;}
+.wc-rules{background:var(--bg2);border-radius:10px;padding:12px;font-size:.8rem;color:var(--dim);line-height:1.8;}
+.wc-rules b{color:var(--tx);}";
+
+    public static string WordChainPage => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Nối Từ | GameHub</title><style>{CSS}{WordChainCSS}</style></head><body>
+{Header}
+{JoinPanel("🔤", "NỐI TỪ TIẾNG VIỆT", "var(--ac3)", "wordchain", "2–8 người • Tiếng Việt • Nối tiếp liên tục • Hết giờ bị loại")}
+{LobbyPanel("🔤", "NỐI TỪ", "var(--ac3)", 8)}
+<div id=""gameArea"" class=""hidden"">
+  <div class=""game-header""><div class=""scoreboard"" id=""scoreboard"" style=""display:none""></div><div id=""turnIndicator"" class=""turn-indicator""></div></div>
+  <div class=""wc-layout"">
+    <div class=""wc-players"" id=""wcPlayers""></div>
+    <div class=""wc-center"">
+      <div class=""wc-last-word"" id=""wcLastWord"">Chờ trò chơi bắt đầu...</div>
+      <span id=""wcTimer"" style=""color:var(--ac)"">--</span>
+      <div class=""wc-input-row"">
+        <input id=""wcInput"" class=""wc-input"" type=""text"" placeholder=""Nhập từ..."" autocomplete=""off"" autocorrect=""off"" spellcheck=""false"">
+        <button id=""wcSendBtn"" class=""wc-btn"" onclick=""wcSubmit()"">Gửi ↵</button>
+      </div>
+    </div>
+    <div class=""wc-log"" id=""wcLog""></div>
+    <div class=""wc-rules"">
+      <b>📋 Luật chơi:</b><br>
+      • Từ phải bắt đầu bằng <b>tiếng cuối</b> của từ trước đó<br>
+      • Phải là <b>từ ghép hoặc từ láy 2 tiếng</b> trở lên có nghĩa trong tiếng Việt<br>
+      • <b>Không lặp lại</b> từ đã dùng trong ván<br>
+      • Hết giờ → bị loại | Người cuối còn lại thắng<br>
+      • Cứ 10 từ, thời gian giảm 5 giây (tối thiểu 10 giây)
+    </div>
+  </div>
+</div>
+{GameOverOverlay}
+{BaseScripts(WordChainJS, "wordchain")}
 </body></html>";
 
 }

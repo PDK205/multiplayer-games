@@ -13,6 +13,14 @@ app.UseCors();
 var rm = app.Services.GetRequiredService<RoomManager>();
 var timer = new Timer(_ => rm.Cleanup(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
 
+// ── Preload từ điển Nối Từ (~200k từ) ────────────────────────
+_ = Task.Run(() => {
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    GameHub.Games.WordChain.EnsureDictLoaded();
+    sw.Stop();
+    Console.WriteLine($"   📖 Từ điển Nối Từ: đã load ({sw.ElapsedMilliseconds}ms)");
+});
+
 // ── SignalR hub ───────────────────────────────────────────────
 app.MapHub<GameHubSignalR>("/gamehub");
 
@@ -26,6 +34,7 @@ app.MapGet("/pong", () => Results.Content(HtmlPages.Pong, "text/html"));
 app.MapGet("/chess", () => Results.Content(HtmlPages.Chess, "text/html"));
 app.MapGet("/mathquiz", () => Results.Content(HtmlPages.MathQuiz, "text/html"));
 app.MapGet("/poker", () => Results.Content(HtmlPages.Poker, "text/html"));
+app.MapGet("/wordchain", () => Results.Content(HtmlPages.WordChainPage, "text/html"));
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "3000";
 app.Urls.Add($"http://0.0.0.0:{port}");

@@ -149,6 +149,43 @@ public class GameHubSignalR : Hub
         else if (evt=="draw") await EndGameBg(room,null,hub,rm,log);
     }
 
+    // ── WordChain ──────────────────────────────────────────────
+    public async Task WordChainSubmit(string word)
+    {
+        if (!_rm.CheckRateLimit(Context.ConnectionId)) return;
+        var room = _rm.GetRoomByPlayer(Context.ConnectionId);
+        if (room?.GameType!="wordchain"||room.State!="PLAYING"||room.GameState is not WordChainGameState gs) return;
+        var (error, valid, newGs) = WordChain.SubmitWord(gs, Context.ConnectionId, word);
+        if (error != null) { await Clients.Caller.SendAsync("game:error", new{message=error}); return; }
+        room.GameState = newGs;
+        await Clients.Group(room.Code).SendAsync("wordchain:updated", new{gameState=newGs});
+        if (newGs.GameOver) { await EndGameBg(room, newGs.Winner, _hubContext, _rm, _logger); return; }
+        // Trigger bot if it's bot's turn
+        if (room.IsVsBot && BotAI.IsBot(newGs.CurrentTurn))
+        { var h=_hubContext;var r=_rm;var l=_logger; _ = Task.Run(async()=>await WordChainBotTurnAsync(room,h,r,l)); }
+    }
+
+    private static async Task WordChainBotTurnAsync(Room room, IHubContext<GameHubSignalR> hub, RoomManager rm, ILogger log)
+    {
+        if (room.GameState is not WordChainGameState gs || gs.GameOver) return;
+        var (delayMs, word) = BotAI.WordChainBotMove(gs, room.BotDifficulty);
+        await Task.Delay(Math.Min(delayMs, gs.TurnTimeLimit * 1000 - 500));
+        if (room.GameState is not WordChainGameState gs2 || gs2.GameOver || !BotAI.IsBot(gs2.CurrentTurn)) return;
+        if (word == null)
+        {
+            // Bot timed out intentionally — let timer handle elimination
+            return;
+        }
+        var (error, valid, newGs) = WordChain.SubmitWord(gs2, BotAI.BOT_ID, word);
+        if (error != null) return;
+        room.GameState = newGs;
+        await hub.Clients.Group(room.Code).SendAsync("wordchain:updated", new{gameState=newGs});
+        if (newGs.GameOver) { await EndGameBg(room, newGs.Winner, hub, rm, log); return; }
+        // Chain: if still bot's turn (multiplayer bot), keep going
+        if (BotAI.IsBot(newGs.CurrentTurn))
+        { _ = Task.Run(async()=>await WordChainBotTurnAsync(room,hub,rm,log)); }
+    }
+
     // ── Snake ─────────────────────────────────────────────────
     public Task SnakeDirection(string direction)
     {
@@ -435,6 +472,15 @@ public class GameHubSignalR : Hub
                 await hub.Clients.Client(rp.Id).SendAsync("poker:state",MkPokerView(gs,rp.Id));
             if(room.IsVsBot){var h4=hub;var r4=rm;var l4=logger;_=Task.Run(async()=>{await Task.Delay(800);if(BotAI.IsBot(gs.Players[gs.CurrentPlayerIndex].Id))await PokerBotTurn(room,h4,r4,l4);});}
         }
+        else if (room.GameType=="wordchain")
+        {
+            var gs=WordChain.CreateGameState(room.Players); room.GameState=gs;
+            await hub.Clients.Group(room.Code).SendAsync("game:start",new{gameType="wordchain",gameState=gs});
+            _ = Task.Run(async()=>await RunWordChainTimer(room,gs,hub,rm,logger));
+            // If bot goes first
+            if(room.IsVsBot && BotAI.IsBot(gs.CurrentTurn))
+            { var h5=hub;var r5=rm;var l5=logger; _ = Task.Run(async()=>{await Task.Delay(2000);await WordChainBotTurnAsync(room,h5,r5,l5);}); }
+        }
         await hub.Clients.All.SendAsync("stats:online",rm.GetOnlineCountByGame());
     }
 
@@ -480,6 +526,35 @@ public class GameHubSignalR : Hub
             }
         }
         catch(Exception ex){logger.LogError(ex,"Chess timer {Code}",room.Code);}
+    }
+
+    private static async Task RunWordChainTimer(Room room, WordChainGameState gs, IHubContext<GameHubSignalR> hub, RoomManager rm, ILogger logger)
+    {
+        var cts = new CancellationTokenSource(); lock(LoopLock){GameLoops[room.Code+"_wc"]=cts;}
+        try
+        {
+            while (!cts.IsCancellationRequested && room.State == "PLAYING" && !gs.GameOver)
+            {
+                await Task.Delay(1000);
+                if (cts.IsCancellationRequested || room.State != "PLAYING" || gs.GameOver) break;
+                // Re-read from room in case bot updated it
+                if (room.GameState is WordChainGameState latest) gs = latest;
+                var elapsed = (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - gs.TurnStartedAt) / 1000;
+                int remaining = Math.Max(0, gs.TurnTimeLimit - (int)elapsed);
+                await hub.Clients.Group(room.Code).SendAsync("wordchain:timer", new{remaining, currentTurn=gs.CurrentTurn});
+                if (remaining <= 0 && !gs.GameOver)
+                {
+                    var (newGs, nick) = WordChain.EliminateCurrentPlayer(gs);
+                    gs = newGs; room.GameState = gs;
+                    await hub.Clients.Group(room.Code).SendAsync("wordchain:updated", new{gameState=gs});
+                    if (gs.GameOver) { StopLoop(room.Code+"_wc"); await EndGameBg(room, gs.Winner, hub, rm, logger); break; }
+                    // Trigger bot if next turn is bot
+                    if (room.IsVsBot && BotAI.IsBot(gs.CurrentTurn))
+                    { _ = Task.Run(async()=>await WordChainBotTurnAsync(room,hub,rm,logger)); }
+                }
+            }
+        }
+        catch (Exception ex) { logger.LogError(ex, "WordChain timer {Code}", room.Code); }
     }
 
     private static async Task EndGameBg(Room room, string? winnerId, IHubContext<GameHubSignalR> hub, RoomManager rm, ILogger logger)

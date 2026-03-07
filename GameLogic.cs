@@ -3,19 +3,20 @@ using GameHub.Models;
 namespace GameHub.Games;
 
 // ══════════════════════════════════════════
-//  TIC-TAC-TOE
+//  CARO (GOMOKU 15x15) – 5 liên tiếp thắng
 // ══════════════════════════════════════════
-public static class TicTacToe
+public static class TicTacToe // Keep class name for compatibility
 {
-    private static readonly int[][] Lines = {
-        new[]{0,1,2}, new[]{3,4,5}, new[]{6,7,8},
-        new[]{0,3,6}, new[]{1,4,7}, new[]{2,5,8},
-        new[]{0,4,8}, new[]{2,4,6}
-    };
+    public const int Size = 15;
+    public const int BoardSize = Size * Size;
+    public const int WinCount = 5;
+
+    // Directions: horizontal, vertical, diag-down, diag-up
+    private static readonly (int dr, int dc)[] Dirs = { (0,1),(1,0),(1,1),(1,-1) };
 
     public static TttGameState CreateGameState(List<RoomPlayer> players) => new()
     {
-        Board = new string?[9],
+        Board = new string?[BoardSize],
         CurrentTurn = players[0].Id,
         Players = new List<TttPlayer>
         {
@@ -26,10 +27,23 @@ public static class TicTacToe
 
     public static (int[]? line, string? winner) CheckWinner(string?[] board)
     {
-        foreach (var line in Lines)
+        for (int r = 0; r < Size; r++)
+        for (int c = 0; c < Size; c++)
         {
-            var a = board[line[0]]; var b = board[line[1]]; var c = board[line[2]];
-            if (a != null && a == b && a == c) return (line, a);
+            var sym = board[r * Size + c];
+            if (sym == null) continue;
+            foreach (var (dr, dc) in Dirs)
+            {
+                var cells = new int[WinCount];
+                bool win = true;
+                for (int k = 0; k < WinCount; k++)
+                {
+                    int nr = r + dr*k, nc = c + dc*k;
+                    if (nr < 0 || nr >= Size || nc < 0 || nc >= Size || board[nr*Size+nc] != sym) { win = false; break; }
+                    cells[k] = nr*Size + nc;
+                }
+                if (win) return (cells, sym);
+            }
         }
         return (null, null);
     }
@@ -37,6 +51,7 @@ public static class TicTacToe
     public static (string? error, string? evt, TttGameState gs, TttPlayer? winner) MakeMove(TttGameState gs, string playerId, int cellIndex)
     {
         if (gs.CurrentTurn != playerId) return ("not your turn", null, gs, null);
+        if (cellIndex < 0 || cellIndex >= BoardSize) return ("invalid cell", null, gs, null);
         if (gs.Board[cellIndex] != null) return ("cell taken", null, gs, null);
         if (gs.Winner != null || gs.IsDraw) return ("game over", null, gs, null);
         var player = gs.Players.FirstOrDefault(p => p.Id == playerId);
@@ -47,10 +62,232 @@ public static class TicTacToe
 
         var (line, sym) = CheckWinner(gs.Board);
         if (sym != null) { gs.Winner = playerId; gs.WinLine = line; player.Score++; return (null, "win", gs, player); }
-        if (gs.MoveCount == 9) { gs.IsDraw = true; return (null, "draw", gs, null); }
+        if (gs.MoveCount == BoardSize) { gs.IsDraw = true; return (null, "draw", gs, null); }
 
         gs.CurrentTurn = gs.Players.First(p => p.Id != playerId).Id;
         return (null, "move", gs, null);
+    }
+}
+
+// ══════════════════════════════════════════
+//  WORD CHAIN – NỐI TỪ TIẾNG VIỆT
+// ══════════════════════════════════════════
+public static class WordChain
+{
+    private static readonly Random Rng = new();
+
+    // ── Từ điển tiếng Việt – load từ file khi startup (~200k+ từ) ──────────────
+    private static HashSet<string> _dictionary = new(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, List<string>> _byFirstSyl = new(StringComparer.OrdinalIgnoreCase);
+    private static bool _dictLoaded = false;
+    private static readonly object _dictLock = new();
+
+    public static void EnsureDictLoaded(string? basePath = null)
+    {
+        if (_dictLoaded) return;
+        lock (_dictLock)
+        {
+            if (_dictLoaded) return;
+            var paths = new[]
+            {
+                basePath != null ? Path.Combine(basePath, "wordchain_dict.txt") : null,
+                "wordchain_dict.txt",
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wordchain_dict.txt"),
+                Path.Combine(Directory.GetCurrentDirectory(), "wordchain_dict.txt"),
+            };
+            string? dictFile = paths.FirstOrDefault(p => p != null && File.Exists(p));
+            if (dictFile != null)
+            {
+                var lines = File.ReadAllLines(dictFile, System.Text.Encoding.UTF8);
+                foreach (var raw in lines)
+                {
+                    var w = Normalize(raw);
+                    if (string.IsNullOrWhiteSpace(w)) continue;
+                    _dictionary.Add(w);
+                    var parts = w.Split(' ');
+                    if (parts.Length >= 2)
+                    {
+                        if (!_byFirstSyl.TryGetValue(parts[0], out var lst))
+                            _byFirstSyl[parts[0]] = lst = new List<string>();
+                        lst.Add(w);
+                    }
+                }
+            }
+            else
+            {
+                // Fallback: từ điển nhỏ nếu thiếu file
+                foreach (var w in FallbackWords)
+                {
+                    _dictionary.Add(w);
+                    var p = w.Split(' ');
+                    if (p.Length >= 2)
+                    {
+                        if (!_byFirstSyl.ContainsKey(p[0])) _byFirstSyl[p[0]] = new();
+                        _byFirstSyl[p[0]].Add(w);
+                    }
+                }
+            }
+            _dictLoaded = true;
+        }
+    }
+
+    private static readonly string[] FallbackWords = {
+        "hạnh phúc","vui vẻ","bình yên","an lành","mạnh mẽ","tiến bộ","thành công",
+        "đoàn kết","hòa bình","tự do","yêu nước","nhân ái","dũng cảm","kiên cường",
+        "trung thành","sáng tạo","phát triển","học hỏi","cần cù","chăm chỉ",
+        "tài năng","công bằng","nhân dân","đất nước","quê hương","tổ quốc",
+        "văn hóa","kinh tế","giáo dục","khoa học","công nghệ","phúc lợi",
+        "bảo vệ","xây dựng","gìn giữ","nỗ lực","cống hiến","tận tâm","nhiệt tình",
+        "lịch sử","truyền thống","phong tục","tập quán","dân tộc","nhân loại",
+        "thiên nhiên","môi trường","sinh thái","bảo tồn","phát huy","giữ gìn",
+        "hy sinh","phấn đấu","vươn lên","khắc phục","vượt qua","kiên nhẫn"
+    };
+
+        private static readonly string[] StarterWords =
+    {
+        "vui vẻ","xinh xắn","mạnh mẽ","thông minh","can đảm",
+        "bình yên","hạnh phúc","tươi sáng","hòa bình","đoàn kết",
+        "anh hùng","nhân ái","công bằng","tự do","hy vọng"
+    };
+
+    // Normalize: lowercase, trim, collapse spaces — robust với Unicode tiếng Việt
+    public static string Normalize(string s)
+        => System.Text.RegularExpressions.Regex
+            .Replace(s.Trim().ToLowerInvariant(), @"\s+", " ");
+
+    public static string GetLastSyllable(string word)
+    {
+        var parts = Normalize(word).Split(' ');
+        return parts[^1];
+    }
+
+    public static string GetFirstSyllable(string word)
+    {
+        var parts = Normalize(word).Split(' ');
+        return parts[0];
+    }
+
+    public static bool IsInDictionary(string word)
+    {
+        EnsureDictLoaded();
+        return _dictionary.Contains(Normalize(word));
+    }
+
+    // Tìm từ hợp lệ trong từ điển bắt đầu bằng syllable, chưa dùng
+    public static string? BotPickWord(string syllable, HashSet<string> usedWords)
+    {
+        EnsureDictLoaded();
+        var normSyl = Normalize(syllable);
+        if (!_byFirstSyl.TryGetValue(normSyl, out var candidates)) return null;
+        var shuffled = candidates.OrderBy(_ => Rng.Next()).ToList();
+        return shuffled.FirstOrDefault(w => !usedWords.Contains(Normalize(w)));
+    }
+
+    public static WordChainGameState CreateGameState(List<RoomPlayer> players)
+    {
+        var starter = StarterWords[Rng.Next(StarterWords.Length)];
+        var gs = new WordChainGameState
+        {
+            Players = players.Select(p => new WordChainPlayer
+            {
+                Id = p.Id, Nickname = p.Nickname, Color = p.Color
+            }).ToList(),
+            UsedWords = new List<string> { Normalize(starter) },
+            LastWord = starter,
+            LastSyllable = GetLastSyllable(starter),
+            CurrentTurn = players[0].Id,
+            TurnStartedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            TimeLimit = 30,
+            TurnTimeLimit = 30,
+        };
+        gs.ChatLog.Add($"🎯 Từ bắt đầu: \"{starter}\" — Tiếng tiếp theo phải bắt đầu bằng: \"{gs.LastSyllable}\"");
+        gs.ChatLog.Add($"⏱️ Mỗi lượt có {gs.TimeLimit} giây");
+        return gs;
+    }
+
+    public static (string? error, bool valid, WordChainGameState gs) SubmitWord(
+        WordChainGameState gs, string playerId, string rawWord)
+    {
+        if (gs.GameOver) return ("Trò chơi đã kết thúc!", false, gs);
+        if (gs.CurrentTurn != playerId) return ("Chưa đến lượt của bạn!", false, gs);
+
+        var player = gs.Players.FirstOrDefault(p => p.Id == playerId);
+        if (player == null || player.IsEliminated) return ("Bạn đã bị loại!", false, gs);
+
+        var word = Normalize(rawWord);
+
+        // Phải có ít nhất 2 tiếng
+        var parts = word.Split(' ');
+        if (parts.Length < 2)
+            return ("❌ Từ phải có ít nhất 2 tiếng (từ ghép hoặc từ láy)!", false, gs);
+
+        // Kiểm tra bắt đầu bằng tiếng cuối từ trước
+        var firstSyl = parts[0];
+        if (!string.IsNullOrEmpty(gs.LastSyllable) && firstSyl != gs.LastSyllable)
+            return ($"❌ Từ phải bắt đầu bằng tiếng \"{gs.LastSyllable}\"!", false, gs);
+
+        // Kiểm tra không lặp lại
+        if (gs.UsedWords.Contains(word))
+            return ($"❌ Từ \"{word}\" đã được dùng rồi!", false, gs);
+
+        // Kiểm tra từ có trong từ điển không
+        if (!IsInDictionary(word))
+            return ($"❌ \"{word}\" không có trong từ điển tiếng Việt! Hãy dùng từ ghép/từ láy phổ biến.", false, gs);
+
+        // ✅ Hợp lệ!
+        gs.UsedWords.Add(word);
+        gs.LastWord = word;
+        gs.LastSyllable = GetLastSyllable(word);
+        player.Score += 10;
+
+        gs.ChatLog.Add($"✅ {player.Nickname}: \"{word}\" → tiếp theo: \"{gs.LastSyllable}\"");
+
+        if (gs.UsedWords.Count % 10 == 0 && gs.TimeLimit > 10)
+        {
+            gs.TimeLimit = Math.Max(10, gs.TimeLimit - 5);
+            gs.ChatLog.Add($"⚡ Tốc độ tăng! Còn {gs.TimeLimit}s mỗi lượt!");
+        }
+
+        gs.Round++;
+        gs = AdvanceTurn(gs);
+        return (null, true, gs);
+    }
+
+    public static (WordChainGameState gs, string eliminatedNickname) EliminateCurrentPlayer(WordChainGameState gs)
+    {
+        var player = gs.Players.FirstOrDefault(p => p.Id == gs.CurrentTurn);
+        string nick = player?.Nickname ?? "?";
+        if (player != null)
+        {
+            player.IsEliminated = true;
+            gs.ChatLog.Add($"💀 {player.Nickname} hết giờ và bị loại!");
+        }
+
+        var alive = gs.Players.Where(p => !p.IsEliminated).ToList();
+        if (alive.Count <= 1)
+        {
+            gs.GameOver = true;
+            gs.Winner = alive.Count == 1 ? alive[0].Id : null;
+            gs.WinReason = alive.Count == 1 ? $"Người chiến thắng: {alive[0].Nickname}!" : "Hòa!";
+            if (alive.Count == 1) gs.ChatLog.Add($"🏆 {alive[0].Nickname} chiến thắng!");
+        }
+        else
+        {
+            gs = AdvanceTurn(gs);
+        }
+        return (gs, nick);
+    }
+
+    private static WordChainGameState AdvanceTurn(WordChainGameState gs)
+    {
+        var alive = gs.Players.Where(p => !p.IsEliminated).ToList();
+        if (alive.Count == 0) return gs;
+        int curIdx = alive.FindIndex(p => p.Id == gs.CurrentTurn);
+        int nextIdx = (curIdx + 1) % alive.Count;
+        gs.CurrentTurn = alive[nextIdx].Id;
+        gs.TurnStartedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        gs.TurnTimeLimit = gs.TimeLimit;
+        return gs;
     }
 }
 
@@ -584,56 +821,77 @@ public static partial class BotAI
     };
 
     // ══════════════════════════════════════
-    //  TIC-TAC-TOE  –  Minimax (bất bại)
+    //  CARO (GOMOKU) – Heuristic AI
     // ══════════════════════════════════════
     public static int TttBotMove(TttGameState gs, string diff = "medium")
     {
         string botSymbol = gs.Players.FirstOrDefault(p => p.Id == BOT_ID)?.Symbol ?? "O";
         string humanSymbol = botSymbol == "O" ? "X" : "O";
-        var empty = Enumerable.Range(0,9).Where(i=>gs.Board[i]==null).ToList();
-        if(empty.Count==0) return -1;
-        // Easy: 65% random; Medium: 35% random; Hard: pure minimax
-        double rndChance = diff=="easy"?0.65:diff=="medium"?0.35:0.0;
-        if(Rng.NextDouble()<rndChance) return empty[Rng.Next(empty.Count)];
-        int bestScore=int.MinValue, bestCell=-1;
-        foreach(int i in empty){
-            gs.Board[i]=botSymbol;
-            int score=TttMinimax(gs.Board,0,false,botSymbol,humanSymbol);
-            gs.Board[i]=null;
-            if(score>bestScore){bestScore=score;bestCell=i;}
+        int size = TicTacToe.Size;
+        var empty = Enumerable.Range(0, TicTacToe.BoardSize).Where(i => gs.Board[i] == null).ToList();
+        if (empty.Count == 0) return -1;
+
+        double rndChance = diff == "easy" ? 0.70 : diff == "medium" ? 0.15 : 0.0;
+        if (Rng.NextDouble() < rndChance)
+        {
+            var near = empty.Where(i => {
+                int r = i / size, c = i % size;
+                for (int dr = -2; dr <= 2; dr++) for (int dc = -2; dc <= 2; dc++) {
+                    int nr = r+dr, nc = c+dc;
+                    if (nr>=0&&nr<size&&nc>=0&&nc<size&&gs.Board[nr*size+nc]!=null) return true;
+                }
+                return false;
+            }).ToList();
+            var pool = near.Count > 0 ? near : empty;
+            return pool[Rng.Next(pool.Count)];
+        }
+
+        int bestScore = -1, bestCell = empty[Rng.Next(empty.Count)];
+        foreach (int i in empty)
+        {
+            gs.Board[i] = botSymbol;
+            int atk = ScoreCell(gs.Board, i, botSymbol);
+            gs.Board[i] = null;
+            gs.Board[i] = humanSymbol;
+            int def = ScoreCell(gs.Board, i, humanSymbol);
+            gs.Board[i] = null;
+            if (atk >= 100000) { bestCell = i; break; }
+            int score = Math.Max(atk * 2, def);
+            if (score > bestScore) { bestScore = score; bestCell = i; }
         }
         return bestCell;
     }
 
-    private static int TttMinimax(string?[] board, int depth, bool isMax, string bot, string human)
+    private static int ScoreCell(string?[] board, int pos, string sym)
     {
-        var (_, winner) = TicTacToe.CheckWinner(board);
-        if (winner == bot)   return 10 - depth;
-        if (winner == human) return depth - 10;
-        if (board.All(c => c != null)) return 0;
-
-        if (isMax)
+        int size = TicTacToe.Size;
+        int r = pos / size, c = pos % size;
+        int total = 0;
+        (int dr, int dc)[] dirs = { (0,1),(1,0),(1,1),(1,-1) };
+        foreach (var (dr, dc) in dirs)
         {
-            int best = int.MinValue;
-            for (int i = 0; i < 9; i++) {
-                if (board[i] != null) continue;
-                board[i] = bot;
-                best = Math.Max(best, TttMinimax(board, depth+1, false, bot, human));
-                board[i] = null;
+            int count = 1, openEnds = 0;
+            for (int k = 1; k < 5; k++) {
+                int nr = r+dr*k, nc = c+dc*k;
+                if (nr<0||nr>=size||nc<0||nc>=size) break;
+                if (board[nr*size+nc] == sym) count++;
+                else { if (board[nr*size+nc] == null) openEnds++; break; }
             }
-            return best;
-        }
-        else
-        {
-            int best = int.MaxValue;
-            for (int i = 0; i < 9; i++) {
-                if (board[i] != null) continue;
-                board[i] = human;
-                best = Math.Min(best, TttMinimax(board, depth+1, true, bot, human));
-                board[i] = null;
+            for (int k = 1; k < 5; k++) {
+                int nr = r-dr*k, nc = c-dc*k;
+                if (nr<0||nr>=size||nc<0||nc>=size) break;
+                if (board[nr*size+nc] == sym) count++;
+                else { if (board[nr*size+nc] == null) openEnds++; break; }
             }
-            return best;
+            total += count switch {
+                >= 5 => 100000,
+                4 => openEnds >= 2 ? 50000 : 10000,
+                3 => openEnds >= 2 ? 5000 : 500,
+                2 => openEnds >= 2 ? 200 : 50,
+                _ => openEnds >= 1 ? 10 : 1
+            };
         }
+        return total;
     }
 
     // ══════════════════════════════════════
@@ -837,7 +1095,29 @@ public static partial class BotAI
             : (gs.CorrectAnswer.GetValueOrDefault()+Rng.Next(-9,10)).ToString();
         return (delayMs, answer);
     }
+
+    // ══════════════════════════════════════════
+    //  WORD CHAIN BOT
+    // ══════════════════════════════════════════
+    public static (int delayMs, string? word) WordChainBotMove(WordChainGameState gs, string diff = "medium")
+    {
+        // Delay: easy=3-6s, medium=1.5-3s, hard=0.5-1.5s
+        int delay = diff == "easy"  ? Rng.Next(3000, 6000)
+                  : diff == "hard"  ? Rng.Next(500, 1500)
+                  : Rng.Next(1500, 3000);
+
+        if (string.IsNullOrEmpty(gs.LastSyllable)) return (delay, null);
+
+        var usedSet = new HashSet<string>(gs.UsedWords, StringComparer.OrdinalIgnoreCase);
+        var word = WordChain.BotPickWord(gs.LastSyllable, usedSet);
+
+        // Easy: 20% chance bot fails (pretends to time out)
+        if (diff == "easy" && Rng.NextDouble() < 0.20) return (delay, null);
+
+        return (delay, word);
+    }
 }
+
 // ══════════════════════════════════════════
 //  POKER GAME
 // ══════════════════════════════════════════
