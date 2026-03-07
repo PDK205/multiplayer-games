@@ -469,45 +469,75 @@ function initChessCanvas(){
   chessCtx=chessCanvas.getContext('2d');
 }
 
-// ── Chess Pieces: Unicode symbols rendered via canvas ──
-var _UNICODE = {
-  wK:'\u2654', wQ:'\u2655', wR:'\u2656', wB:'\u2657', wN:'\u2658', wP:'\u2659',
-  bK:'\u265a', bQ:'\u265b', bR:'\u265c', bB:'\u265d', bN:'\u265e', bP:'\u265f'
+// ── Chess Pieces: Unicode pixel-recolor (mobile-safe) ──
+// Render glyph → read pixels → recolor all dark pixels → cache result
+var _UNICODE={
+  wK:'\u2654',wQ:'\u2655',wR:'\u2656',wB:'\u2657',wN:'\u2658',wP:'\u2659',
+  bK:'\u265a',bQ:'\u265b',bR:'\u265c',bB:'\u265d',bN:'\u265e',bP:'\u265f'
 };
+var _pieceCache={};
+
+function _buildPiece(pc,C){
+  var k=pc+':'+C; if(_pieceCache[k])return _pieceCache[k];
+  var isW=pc[0]==='w';
+  var sym=_UNICODE[pc]; if(!sym)return null;
+  var sz=Math.round(C);
+  var oc=document.createElement('canvas');
+  oc.width=sz; oc.height=sz;
+  var ox=oc.getContext('2d');
+  var fs=Math.floor(sz*0.82);
+  ox.clearRect(0,0,sz,sz);
+  ox.font='bold '+fs+'px serif';
+  ox.textAlign='center';
+  ox.textBaseline='middle';
+  // Draw in black - mobile may render its own color but pixel data will have alpha
+  ox.fillStyle='#000000';
+  ox.fillText(sym,sz/2,sz/2+fs*0.04);
+
+  // Read pixels and recolor: any pixel with alpha>20 gets our target color
+  var imgd=ox.getImageData(0,0,sz,sz);
+  var d=imgd.data;
+  var fr,fg,fb,br,bg,bb;
+  if(isW){
+    // Fill color: warm cream  Outline: dark brown
+    fr=245;fg=232;fb=200; // fill: #f5e8c8
+    br=50; bg=28; bb=0;   // outline: #321c00
+  } else {
+    // Fill color: near-black  Outline: warm tan
+    fr=18; fg=10; fb=2;   // fill: #120a02
+    br=210;bg=180;bb=120; // outline: #d2b478
+  }
+  for(var i=0;i<d.length;i+=4){
+    var a=d[i+3];
+    if(a<20){d[i+3]=0;continue;}
+    // Pixels with high alpha = glyph body = fill color
+    // Pixels with medium alpha = edge = blend toward outline
+    if(a>180){
+      d[i]=fr;d[i+1]=fg;d[i+2]=fb;d[i+3]=255;
+    } else {
+      // edge pixels: outline color
+      var t=a/180;
+      d[i]=Math.round(br+(fr-br)*t);
+      d[i+1]=Math.round(bg+(fg-bg)*t);
+      d[i+2]=Math.round(bb+(fb-bb)*t);
+      d[i+3]=Math.min(255,a+80);
+    }
+  }
+  ox.putImageData(imgd,0,0);
+  _pieceCache[k]=oc;
+  return oc;
+}
 
 function drawPiece(ctx,pc,cx,cy,C){
-  var sym=_UNICODE[pc[0]+pc[1]];
-  if(!sym)return;
-  var isWhite=pc[0]==='w';
-  var sz=Math.floor(C*0.82);
+  var key=pc[0]+pc[1];
+  var img=_buildPiece(key,C);
+  if(!img)return;
   ctx.save();
-  ctx.font='bold '+sz+'px serif';
-  ctx.textAlign='center';
-  ctx.textBaseline='middle';
-  // Drop shadow
-  ctx.shadowColor='rgba(0,0,0,0.55)';
-  ctx.shadowBlur=sz*0.10;
-  ctx.shadowOffsetX=sz*0.04;
-  ctx.shadowOffsetY=sz*0.06;
-  if(isWhite){
-    // White: fill cream, strong dark outline
-    ctx.strokeStyle='#4a3000';
-    ctx.lineWidth=sz*0.10;
-    ctx.lineJoin='round';
-    ctx.strokeText(sym,cx,cy+sz*0.04);
-    ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
-    ctx.fillStyle='#fff8e8';
-    ctx.fillText(sym,cx,cy+sz*0.04);
-  } else {
-    // Black: fill dark, light outline
-    ctx.strokeStyle='#e8d5b0';
-    ctx.lineWidth=sz*0.08;
-    ctx.lineJoin='round';
-    ctx.strokeText(sym,cx,cy+sz*0.04);
-    ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
-    ctx.fillStyle='#1a1008';
-    ctx.fillText(sym,cx,cy+sz*0.04);
-  }
+  ctx.shadowColor='rgba(0,0,0,0.5)';
+  ctx.shadowBlur=C*0.10;
+  ctx.shadowOffsetX=C*0.03;
+  ctx.shadowOffsetY=C*0.06;
+  ctx.drawImage(img,cx-C/2,cy-C/2,C,C);
   ctx.restore();
 }
 
