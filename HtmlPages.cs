@@ -86,14 +86,14 @@ canvas{border-radius:8px;border:1px solid var(--br);display:block;max-width:100%
 .result-rank{font-family:var(--fd);font-size:.78rem;width:26px;text-align:center;color:var(--dim)}
 .result-rank.gold{color:var(--ac4)}
 .result-score{margin-left:auto;font-weight:700;font-family:var(--fd)}
-.ttt-board{display:grid;grid-template-columns:repeat(15,1fr);gap:2px;max-width:min(600px,97vw);margin:10px auto;padding:8px;background:var(--bg2);border-radius:8px;border:2px solid var(--br);}
-.ttt-cell{aspect-ratio:1;background:var(--bg3);border:1px solid rgba(255,255,255,0.07);border-radius:3px;cursor:pointer;font-size:clamp(.6rem,2.5vw,1rem);font-weight:800;transition:background .15s;display:flex;align-items:center;justify-content:center;color:var(--tx);-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
-.ttt-cell:hover:not(.taken){background:rgba(255,255,255,0.1);border-color:var(--ac)}
+.ttt-board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:min(340px,90vw);margin:20px auto;padding:18px}
+.ttt-cell{aspect-ratio:1;background:var(--bg3);border:1px solid var(--br);border-radius:10px;cursor:pointer;font-family:var(--fd);font-size:clamp(1.8rem,8vw,2.8rem);font-weight:700;transition:all .2s;display:flex;align-items:center;justify-content:center;color:var(--tx);-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.ttt-cell:hover:not(.taken){background:var(--bg2);border-color:var(--ac)}
 .ttt-cell.taken{cursor:not-allowed}
 .ttt-cell.symbol-X{color:var(--ac)}
 .ttt-cell.symbol-O{color:var(--ac2)}
-.ttt-cell.winning{background:rgba(0,255,136,.25);border-color:var(--ac);animation:winPulse .5s ease 3}
-.ttt-cell.winning.symbol-O{background:rgba(255,68,102,.2);border-color:var(--ac2)}
+.ttt-cell.winning{background:rgba(0,255,136,.1);border-color:var(--ac);animation:winPulse .5s ease 3}
+.ttt-cell.winning.symbol-O{background:rgba(255,68,102,.1);border-color:var(--ac2)}
 .turn-indicator{text-align:center;font-family:var(--fd);font-size:.88rem;color:var(--dim);padding:9px}
 .turn-indicator span{color:var(--ac);font-weight:700}
 .draw-layout{display:grid;grid-template-columns:1fr 260px;gap:0;height:calc(100vh - 58px)}
@@ -144,8 +144,8 @@ canvas{border-radius:8px;border:1px solid var(--br);display:block;max-width:100%
   .math-container{margin:16px auto;padding:0 12px;}
   .math-question{font-size:2.2rem;padding:20px 12px;}
   .math-input{font-size:1.2rem;padding:10px 14px;}
-  .ttt-board{max-width:98vw;padding:4px;gap:1px;}
-  .ttt-cell{font-size:.55rem;}
+  .ttt-board{max-width:96vw;padding:10px;gap:6px;}
+  .ttt-cell{font-size:2.2rem;}
   .lobby-container{padding:0 10px;margin:14px auto;}
   .room-code{font-size:1.2rem;}
   .btn{padding:10px 14px;font-size:.9rem;}
@@ -180,9 +180,7 @@ const socket = {
       'chess:getLegalMoves': 'ChessGetLegalMoves',
       'chess:getSquareMoves': 'ChessGetLegalMoves',
       'chess:resign': 'ChessResign',
-      'room:playVsBot': 'RoomPlayVsBot',
-      'poker:action': 'PokerAction',
-      'wordchain:submit': 'WordChainSubmit'
+      'room:playVsBot': 'RoomPlayVsBot'
     };
     const methodName = map[event] || event;
     const payload = args[0];
@@ -204,8 +202,6 @@ const socket = {
       else if (event === 'chess:getSquareMoves') callArgs = [payload.square];
       else if (event === 'chess:resign') callArgs = [];
       else if (event === 'room:playVsBot') callArgs = [payload.gameType, payload.difficulty||'medium'];
-      else if (event === 'poker:action') callArgs = [payload.action, payload.amount||0];
-      else if (event === 'wordchain:submit') callArgs = [payload.word];
       else callArgs = [payload];
     }
     connection.invoke(methodName, ...callArgs).catch(e => console.error(event, e));
@@ -231,7 +227,7 @@ function updatePlayerUI(p){
 }
 connection.onreconnecting(()=>showNetworkStatus('🔴 Mất kết nối - Đang kết nối lại...'));
 connection.onreconnected(()=>{hideNetworkStatus();const s=initPlayer();if(s.nickname)registerPlayer(s.nickname,s.color);});
-socket.on('game:start',(data)=>{const cd=document.getElementById('cdOverlay');if(cd)cd.remove();if(!window.currentPlayer){window._pendingGameStart=data;return;}if(window._gameStartHandlers)window._gameStartHandlers.forEach(fn=>fn(data));});
+socket.on('game:start',(data)=>{if(!window.currentPlayer){window._pendingGameStart=data;return;}if(window._gameStartHandlers)window._gameStartHandlers.forEach(fn=>fn(data));});
 function showNetworkStatus(msg){let e=document.getElementById('networkStatus');if(!e){e=document.createElement('div');e.id='networkStatus';e.className='network-status';document.body.appendChild(e);}e.textContent=msg;e.style.display='block';}
 function hideNetworkStatus(){const e=document.getElementById('networkStatus');if(e)e.style.display='none';}
 function createAvatar(nickname,color,size=36){const d=document.createElement('div');d.className='player-avatar';d.style.cssText='background:'+color+';width:'+size+'px;height:'+size+'px;font-size:'+(size*.32)+'px;';d.textContent=nickname.charAt(0).toUpperCase();return d;}
@@ -293,7 +289,7 @@ function renderPlayers(room){
 function renderCode(code){const e=document.getElementById('roomCode');if(e)e.textContent=code;}
 function updateLobbyUI(room){const rb=document.getElementById('readyBtn');if(rb)rb.disabled=room.state!=='WAITING';}
 function showLobbyView(){const j=document.getElementById('joinArea'),l=document.getElementById('lobbyArea');if(j)j.classList.add('hidden');if(l)l.classList.remove('hidden');}
-function showCountdown(count){const old=document.getElementById('cdOverlay');if(old)old.remove();if(!count)return;const o=document.createElement('div');o.id='cdOverlay';o.className='countdown-overlay';o.innerHTML='<div class=""countdown-number"">'+count+'</div>';document.body.appendChild(o);setTimeout(()=>{if(o.parentNode)o.remove();},800);}
+function showCountdown(count){showLobbyView();const old=document.getElementById('cdOverlay');if(old)old.remove();if(!count)return;const o=document.createElement('div');o.id='cdOverlay';o.className='countdown-overlay';o.innerHTML='<div class=""countdown-number"">'+count+'</div>';document.body.appendChild(o);setTimeout(()=>o.remove(),900);}
 function addChatMessage(nickname,color,message,isCorrect=false,isSystem=false){
   const el=document.getElementById('chatMessages');if(!el)return;
   const m=document.createElement('div');m.className='chat-msg'+(isCorrect?' is-correct':'')+(isSystem?' is-system':'');
@@ -318,13 +314,12 @@ function showGameOver(winnerId,winnerNickname,players){
 }";
 
     private const string TttJS = @"
-const CARO_SIZE=15;
 let tttState=null;
-function initBoard(){const b=document.getElementById('tttBoard');b.innerHTML='';for(let i=0;i<CARO_SIZE*CARO_SIZE;i++){const c=document.createElement('div');c.className='ttt-cell';c.dataset.index=i;c.addEventListener('click',()=>{if(tttState&&tttState.currentTurn===window.currentPlayer?.id)socket.emit('tictactoe:move',{cellIndex:i});else showToast('Chưa đến lượt bạn!','error');});b.appendChild(c);}}
+function initBoard(){const b=document.getElementById('tttBoard');b.innerHTML='';for(let i=0;i<9;i++){const c=document.createElement('div');c.className='ttt-cell';c.dataset.index=i;c.addEventListener('click',()=>{if(tttState&&tttState.currentTurn===window.currentPlayer?.id)socket.emit('tictactoe:move',{cellIndex:i});else showToast('Chưa đến lượt bạn!','error');});b.appendChild(c);}}
 function renderBoard(gs){tttState=gs;const cells=document.querySelectorAll('.ttt-cell');gs.board.forEach((v,i)=>{const c=cells[i];if(v){c.textContent=v;c.classList.add('taken','symbol-'+v);}else{c.textContent='';c.className='ttt-cell';}});if(gs.winLine)gs.winLine.forEach(i=>cells[i].classList.add('winning'));updateTurnInfo(gs);}
 function updateTurnInfo(gs){const e=document.getElementById('turnIndicator');if(!e)return;if(gs.winner||gs.isDraw){e.innerHTML=gs.isDraw?'🤝 Hòa!':'';return;}const cp=gs.players.find(p=>p.id===gs.currentTurn);if(!cp)return;if(gs.currentTurn===window.currentPlayer?.id){e.innerHTML='Lượt của bạn <span>('+gs.players.find(p=>p.id===window.currentPlayer.id)?.symbol+')</span>';e.style.color='var(--ac)';}else{e.innerHTML='Lượt của <span>'+cp.nickname+'</span>';e.style.color='var(--dim)';}}
 function updateTTTScore(gs){const e=document.getElementById('scoreboard');if(!e||!gs.players)return;e.innerHTML=gs.players.map(p=>'<div class=""score-item""><div class=""player-avatar"" style=""background:'+(p.color||'#888')+';width:28px;height:28px;font-size:.75rem;"">'+p.nickname.charAt(0).toUpperCase()+'</div><div><div class=""score-name"">'+p.nickname+' ('+p.symbol+')</div><div class=""score-value"" style=""color:'+(p.symbol==='X'?'var(--ac)':'var(--ac2)')+'"">'+(p.score||0)+'</div></div></div>').join('');}
-(window._gameStartHandlers=window._gameStartHandlers||[]).push(({gameType,gameState})=>{if(gameType!=='tictactoe')return;document.getElementById('lobbyArea').classList.add('hidden');document.getElementById('gameArea').classList.remove('hidden');document.getElementById('joinArea').classList.add('hidden');initBoard();renderBoard(gameState);updateTTTScore(gameState);const my=gameState.players.find(p=>p.id===window.currentPlayer?.id);if(my)showToast('Bạn là '+my.symbol+' — 5 liên tiếp để thắng!','info');});
+(window._gameStartHandlers=window._gameStartHandlers||[]).push(({gameType,gameState})=>{if(gameType!=='tictactoe')return;document.getElementById('lobbyArea').classList.add('hidden');document.getElementById('gameArea').classList.remove('hidden');document.getElementById('joinArea').classList.add('hidden');initBoard();renderBoard(gameState);updateTTTScore(gameState);const my=gameState.players.find(p=>p.id===window.currentPlayer?.id);if(my)showToast('Bạn là '+my.symbol,'info');});
 socket.on('tictactoe:updated',({gameState})=>{renderBoard(gameState);updateTTTScore(gameState);});
 socket.on('game:over',({winnerId,winnerNickname,players,gameState})=>{if(gameState){renderBoard(gameState);updateTTTScore(gameState);}showGameOver(winnerId,winnerNickname,players);});
 socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('hidden');document.getElementById('lobbyArea').classList.remove('hidden');const o=document.getElementById('gameOverOverlay');if(o)o.classList.add('hidden');tttState=null;});";
@@ -456,68 +451,102 @@ let chessCanvas=null,chessCtx=null,CELL=0,chessState=null,myColor=null;
 let selectedSq=null,highlightedSqs=new Set(),legalFromServer={},lastMove=null;
 
 function initChessCanvas(){
-  var wrap=document.getElementById('chessBoardWrap');
+  const wrap=document.getElementById('chessBoardWrap');
   if(!wrap)return;
-  // Tính từ window - KHÔNG dùng wrap.clientWidth (gây shift mỗi nước đi)
-  var size=Math.floor(Math.min(560,window.innerWidth*0.96)/8)*8;
-  if(chessCanvas&&CELL===size/8)return; // size không đổi, bỏ qua
-  CELL=size/8;
+  chessCanvas=document.getElementById('chessCanvas');
   if(!chessCanvas){
     chessCanvas=document.createElement('canvas');
     chessCanvas.id='chessCanvas';
-    chessCanvas.style.cssText='display:block;cursor:pointer;border-radius:4px;touch-action:none;';
+    chessCanvas.style.cssText='display:block;cursor:pointer;border-radius:4px;touch-action:none;max-width:100%;';
     chessCanvas.addEventListener('click',onCanvasClick);
-    chessCanvas.addEventListener('touchend',function(e){
-      e.preventDefault();
-      var t=e.changedTouches[0];
-      var r=chessCanvas.getBoundingClientRect();
-      var x=Math.floor((t.clientX-r.left)/r.width*8);
-      var y=Math.floor((t.clientY-r.top)/r.height*8);
-      if(x>=0&&x<8&&y>=0&&y<8){var sq=myColor==='black'?(7-y)*8+(7-x):y*8+x;onSquareClick(sq);}
-    },{passive:false});
+    chessCanvas.addEventListener('touchend',function(e){e.preventDefault();var t=e.changedTouches[0];var r=chessCanvas.getBoundingClientRect();var x=Math.floor((t.clientX-r.left)*(chessCanvas.width/r.width)/CELL);var y=Math.floor((t.clientY-r.top)*(chessCanvas.height/r.height)/CELL);if(x>=0&&x<8&&y>=0&&y<8){var sq=myColor==='black'?(7-y)*8+(7-x):y*8+x;onSquareClick(sq);}},{passive:false});
     wrap.appendChild(chessCanvas);
+    const size=Math.min(wrap.clientWidth||560,560,window.innerWidth*0.95);
+    CELL=Math.floor(size/8);
+    chessCanvas.width=CELL*8;
+    chessCanvas.height=CELL*8;
   }
-  chessCanvas.width=size;
-  chessCanvas.height=size;
-  chessCanvas.style.width=size+'px';
-  chessCanvas.style.height=size+'px';
   chessCtx=chessCanvas.getContext('2d');
 }
 
-// ── Chess Pieces ──
+// ── Chess Pieces: SVG Staunton rendered via canvas ──
+var _pieceCache={};
 
-function drawPiece(ctx, pc, cx, cy, C) {
-  var isWhite = pc[0] === 'w';
-  var type = pc[1];
-  var symbols = { K:'♚', Q:'♛', R:'♜', B:'♝', N:'♞', P:'♟' };
-  var sym = symbols[type] || '♟';
-
-  ctx.save();
-  ctx.shadowColor   = 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur    = C * 0.08;
-  ctx.shadowOffsetX = C * 0.02;
-  ctx.shadowOffsetY = C * 0.04;
-
-  var fontSize = Math.floor(C * 0.72);
-  ctx.font      = fontSize + 'px serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  // Draw outline for contrast
-  ctx.strokeStyle = isWhite ? '#5a3a10' : '#ffffff';
-  ctx.lineWidth   = Math.max(1.5, C * 0.04);
-  ctx.lineJoin    = 'round';
-  ctx.strokeText(sym, cx, cy + C * 0.04);
-
-  ctx.fillStyle = isWhite ? '#ffffff' : '#1a1a1a';
-  ctx.fillText(sym, cx, cy + C * 0.04);
-
-  ctx.restore();
+function _pieceSVG(color,type){
+  var w=color==='w';
+  var fill=w?'#f0d9b5':'#1a1a1a';
+  var stroke=w?'#b58863':'#e8d5b0';
+  var sw='1.5';
+  var g0='<g fill=\''+fill+'\' stroke=\''+stroke+'\' stroke-width=\''+sw+'\' stroke-linecap=\'round\' stroke-linejoin=\'round\'>';
+  var g1='</g>';
+  var K=g0
+    +'<path d=\'M22.5 11.63V6M20 8h5\' stroke-width=\'1.6\'/>'
+    +'<path d=\'M22.5 25s4.5-7.5 3-10.5c0 0-1-2.5-3-2.5s-3 2.5-3 2.5c-1.5 3 3 10.5 3 10.5\'/>'
+    +'<path d=\'M11.5 37c5.5 3.5 15.5 3.5 21 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4V17s-3.5-7 0-10c0 0-3 0-5 4.5-2 4.5 0 10 0 10v6.5c-2.5-7.5-12-10.5-16-4-3 6 5 10 5 10V37z\'/>'
+    +'<path d=\'M20 34.5c-5 1.5-8 1-11 0m23 0c5 1.5 8 1 11 0\' fill=\'none\'/>'
+    +g1;
+  var Q=g0
+    +'<circle cx=\'6\' cy=\'12\' r=\'2.75\'/><circle cx=\'14\' cy=\'9\' r=\'2.75\'/><circle cx=\'22.5\' cy=\'8\' r=\'2.75\'/><circle cx=\'31\' cy=\'9\' r=\'2.75\'/><circle cx=\'39\' cy=\'12\' r=\'2.75\'/>'
+    +'<path d=\'M9 26c8.5-8.5 15.5-8.5 27 0l2.5-12.5L31 25l-.3-14.1-8.2 13.4-8.2-13.5L14 25 6.5 13.5 9 26z\'/>'
+    +'<path d=\'M9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1 2.5-1 2.5 6.5 3 16 3 22.5 0 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4\'/>'
+    +'<path d=\'M11.5 30c3.5-1 18.5-1 22 0m-22.5 3.5c1.5-.5 20.5-.5 22 0m-22.5 2.5c5.5-1.5 15.5-1.5 21 0\' fill=\'none\'/>'
+    +g1;
+  var R=g0
+    +'<path d=\'M9 39h27v-3H9v3zm3-3v-4h21v4H12zm-1-22V9h4v2h5V9h5v2h5V9h4v5\'/>'
+    +'<path d=\'M34 14l-3 3H14l-3-3\'/>'
+    +'<path d=\'M31 17v12.5H14V17h17z\' stroke-linejoin=\'miter\'/>'
+    +'<path d=\'M31 29.5l1.5 2.5h-21l1.5-2.5\'/>'
+    +'<path d=\'M11 14h23\' fill=\'none\' stroke-linejoin=\'miter\'/>'
+    +g1;
+  var B=g0
+    +'<path d=\'M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.35.49-2.32.47-3-.5 1.35-1.46 3-2 3-2z\'/>'
+    +'<path d=\'M15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2z\'/>'
+    +'<path d=\'M25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z\'/>'
+    +'<path d=\'M17.5 26h10M15 30h15m-7.5-14.5v5M20 18h5\' fill=\'none\' stroke-width=\'1.5\' stroke-linejoin=\'miter\'/>'
+    +g1;
+  var N=g0
+    +'<path d=\'M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21\'/>'
+    +'<path d=\'M24 18c.38 5.12-2.6 11.5-5.5 14.5H35c-3-4-5-12.5-8-17z\' stroke-width=\'1.5\' stroke-linejoin=\'miter\'/>'
+    +'<path d=\'M9.5 25.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13z\'/>'
+    +'<path d=\'M9.5 12.5c-1.5 1-2 1-3.5.5M9.5 12.5l1 1.5M14 9.5l-1 2M14 9.5l-2.5 1\' stroke-width=\'1.5\'/>'
+    +'<circle cx=\'6\' cy=\'12\' r=\'2\' fill=\''+stroke+'\'/>'
+    +g1;
+  var P=g0
+    +'<path d=\'M22.5 9a4 4 0 1 1-8 0 4 4 0 0 1 8 0z\'/>'
+    +'<path d=\'M22.5 15.5c4.5 3.5 6 7.5 4 16.5H14c-2-9-.5-13 4-16.5z\'/>'
+    +'<path d=\'M11.5 37c5.5 2.5 15.5 2.5 21 0\'/>'
+    +g1;
+  var parts={K:K,Q:Q,R:R,B:B,N:N,P:P};
+  return '<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 45 45\'>'+(parts[type]||P)+'</svg>';
 }
 
+function getPieceImg(key){
+  if(_pieceCache[key])return _pieceCache[key];
+  var svg=_pieceSVG(key[0],key[1]);
+  var url='data:image/svg+xml,'+encodeURIComponent(svg);
+  var img=new Image();
+  img.src=url;
+  _pieceCache[key]=img;
+  return img;
+}
 
-
-
+function drawPiece(ctx,pc,cx,cy,C){
+  var key=pc[0]+pc[1];
+  var img=getPieceImg(key);
+  var pad=C*0.04;
+  var sz=C-pad*2;
+  if(img.complete&&img.naturalWidth>0){
+    ctx.save();
+    ctx.shadowColor='rgba(0,0,0,0.5)';
+    ctx.shadowBlur=sz*0.12;
+    ctx.shadowOffsetX=sz*0.04;
+    ctx.shadowOffsetY=sz*0.07;
+    ctx.drawImage(img,cx-sz/2,cy-sz/2,sz,sz);
+    ctx.restore();
+  } else {
+    img.onload=function(){if(chessState)drawBoard(chessState);};
+  }
+}
 
 function drawBoard(gs){
   chessState=gs;
@@ -568,15 +597,21 @@ function drawBoard(gs){
     ctx.textAlign='left'; ctx.fillText(rankNum,i*C+2,(i===0?C*0.05:0)+i*C);
     ctx.textAlign='right'; ctx.fillText(fileLetter,(i+1)*C-2,7*C+C*0.72);
   }
-  // Draw pieces
-  ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
+  // Draw pieces with drop shadow
+  ctx.shadowColor='rgba(0,0,0,0.38)';
+  ctx.shadowBlur=Math.max(3,C*0.09);
+  ctx.shadowOffsetX=Math.max(1,C*0.04);
+  ctx.shadowOffsetY=Math.max(1,C*0.04);
   for(var idx=0;idx<64;idx++){
     var piece=gs.board[idx];
     if(!piece) continue;
     var rcc=idx2rc(idx);
     drawPiece(ctx,piece,rcc[1]*C+C/2,rcc[0]*C+C/2,C);
   }
-  ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
+  ctx.shadowColor='transparent';
+  ctx.shadowBlur=0;
+  ctx.shadowOffsetX=0;
+  ctx.shadowOffsetY=0;
   updateChessStatus(gs);
 }
 
@@ -586,9 +621,9 @@ function initChessBoard(){initChessCanvas();}
 function onCanvasClick(e){
   if(!chessCtx||!CELL)return;
   var r=chessCanvas.getBoundingClientRect();
-  // Dùng r.width/height (CSS size) để tính cột/hàng, không dùng canvas.width
-  var x=Math.floor((e.clientX-r.left)/r.width*8);
-  var y=Math.floor((e.clientY-r.top)/r.height*8);
+  var scaleX=chessCanvas.width/r.width, scaleY=chessCanvas.height/r.height;
+  var x=Math.floor((e.clientX-r.left)*scaleX/CELL);
+  var y=Math.floor((e.clientY-r.top)*scaleY/CELL);
   if(x<0||x>=8||y<0||y>=8)return;
   var sq=myColor==='black'?(7-y)*8+(7-x):y*8+x;
   onSquareClick(sq);
@@ -622,32 +657,19 @@ function showPromoDialog(from,to){
   var d=document.getElementById('promoDialog'); if(!d)return;
   d.style.display='flex';
   var side=chessState.board[from][0];
-  var syms={Q:{w:'♛',b:'♛'},R:{w:'♜',b:'♜'},B:{w:'♝',b:'♝'},N:{w:'♞',b:'♞'}};
-  var labels={Q:'Hậu',R:'Xe',B:'Tượng',N:'Mã'};
   ['Q','R','B','N'].forEach(function(p){
     var btn=document.getElementById('promo'+p);
     if(btn){
+      var key=side+p;
+      var label={Q:'Queen',R:'Rook',B:'Bishop',N:'Knight'}[p];
+      var pimg=getPieceImg(key);
       btn.innerHTML='';
-      var cv=document.createElement('canvas');cv.width=64;cv.height=64;
-      var cx2=cv.getContext('2d');
-      cx2.fillStyle=side==='w'?'#2a2a3a':'#1a1a2a';
-      cx2.beginPath();cx2.roundRect(2,2,60,60,10);cx2.fill();
-      cx2.shadowColor='rgba(0,0,0,0.6)';cx2.shadowBlur=4;cx2.shadowOffsetY=2;
-      cx2.font='bold 38px serif';
-      cx2.textAlign='center';cx2.textBaseline='middle';
-      cx2.strokeStyle=side==='w'?'#5a3a10':'#ffffff';
-      cx2.lineWidth=2;cx2.lineJoin='round';
-      cx2.strokeText(syms[p][side]||syms[p].w,32,34);
-      cx2.fillStyle=side==='w'?'#ffffff':'#1a1a1a';
-      cx2.fillText(syms[p][side]||syms[p].w,32,34);
-      cx2.shadowBlur=0;
-      cx2.font='bold 10px sans-serif';
-      cx2.fillStyle='rgba(255,255,255,0.6)';
-      cx2.fillText(labels[p],32,58);
-      cv.style.cssText='cursor:pointer;border-radius:8px;border:1px solid rgba(255,255,255,0.15);';
-      cv.title=labels[p];
-      btn.appendChild(cv);
-      btn.title=labels[p];
+      var pcv=document.createElement('canvas');pcv.width=64;pcv.height=64;
+      var pcx=pcv.getContext('2d');
+      (function(im,cx2){function d(){if(im.complete&&im.naturalWidth>0){cx2.clearRect(0,0,64,64);cx2.save();cx2.shadowColor='rgba(0,0,0,.4)';cx2.shadowBlur=4;cx2.drawImage(im,3,3,58,58);cx2.restore();}else{im.onload=d;}}d();})(pimg,pcx);
+      pcv.title=label;pcv.style.cssText='cursor:pointer;border-radius:8px;';
+      btn.appendChild(pcv);
+      btn.title=label;
       btn.onclick=function(){d.style.display='none';socket.emit('chess:move',{from:from,to:to,promotion:p});clearSelection();};
     }
   });
@@ -692,7 +714,6 @@ socket.on('game:over',function(data){showGameOver(data.winnerId,data.winnerNickn
 (window._gameStartHandlers=window._gameStartHandlers||[]).push(function(data){
   var gameType=data.gameType, gameState=data.gameState;
   if(gameType!=='chess')return;
-  var cdOv=document.getElementById('cdOverlay');if(cdOv)cdOv.remove();
   chessState=gameState; lastMove=null; legalFromServer={}; clearSelection();
   var myId=window.currentPlayer&&window.currentPlayer.id;
   var myPlayer=gameState.players.find(function(p){return p.id===myId;});
@@ -845,13 +866,12 @@ socket.on('game:reset',()=>{document.getElementById('gameArea').classList.add('h
   <p style=""color:var(--dim);font-size:.95rem;"">5 games • Chơi ngay không cần đăng ký • Real-time</p>
 </div>
 <main class=""games-grid"">
-  <a href=""/tictactoe"" class=""game-card"" style=""--cc:#00ff88;""><span class=""game-icon"">⬜</span><div class=""game-title"">CỜ CARO</div><div class=""game-desc"">2 người • X vs O • 15×15 • 5 liên tiếp thắng</div><div class=""game-online""><span class=""online-dot""></span><span id=""online-tictactoe"">0</span> người đang chơi</div></a>
+  <a href=""/tictactoe"" class=""game-card"" style=""--cc:#00ff88;""><span class=""game-icon"">⭕</span><div class=""game-title"">TIC-TAC-TOE</div><div class=""game-desc"">2 người • X vs O • Cổ điển</div><div class=""game-online""><span class=""online-dot""></span><span id=""online-tictactoe"">0</span> người đang chơi</div></a>
   <a href=""/snake"" class=""game-card"" style=""--cc:#ffaa00;""><span class=""game-icon"">🐍</span><div class=""game-title"">SNAKE BATTLE</div><div class=""game-desc"">2-4 người • Ăn mồi • Last standing</div><div class=""game-online""><span class=""online-dot"" style=""background:var(--ac4);box-shadow:0 0 6px var(--ac4)""></span><span id=""online-snake"">0</span> người đang chơi</div></a>
   <a href=""/pong"" class=""game-card"" style=""--cc:#4488ff;""><span class=""game-icon"">🏓</span><div class=""game-title"">PONG</div><div class=""game-desc"">2 người • Paddle • First to 5</div><div class=""game-online""><span class=""online-dot"" style=""background:var(--ac3);box-shadow:0 0 6px var(--ac3)""></span><span id=""online-pong"">0</span> người đang chơi</div></a>
   <a href=""/chess"" class=""game-card"" style=""--cc:#cc44ff;""><span class=""game-icon"">♟️</span><div class=""game-title"">CHESS</div><div class=""game-desc"">2 players • Chess • Checkmate</div><div class=""game-online""><span class=""online-dot"" style=""background:#cc44ff;box-shadow:0 0 6px #cc44ff""></span><span id=""online-chess"">0</span> playing</div></a>
   <a href=""/mathquiz"" class=""game-card"" style=""--cc:#ff4466;""><span class=""game-icon"">🧮</span><div class=""game-title"">QUICK MATH</div><div class=""game-desc"">2-4 người • Trả lời nhanh • +điểm</div><div class=""game-online""><span class=""online-dot"" style=""background:var(--ac2);box-shadow:0 0 6px var(--ac2)""></span><span id=""online-mathquiz"">0</span> người đang chơi</div></a>
   <a href=""/poker"" class=""game-card"" style=""--cc:#ff9944;""><span class=""game-icon"">🃏</span><div class=""game-title"">POKER</div><div class=""game-desc"">2 người • Texas Hold'em • Chips</div><div class=""game-online""><span class=""online-dot"" style=""background:#ff9944;box-shadow:0 0 6px #ff9944""></span><span id=""online-poker"">0</span> người đang chơi</div></a>
-  <a href=""/wordchain"" class=""game-card"" style=""--cc:#44ddff;""><span class=""game-icon"">🔤</span><div class=""game-title"">NỐI TỪ</div><div class=""game-desc"">2–8 người • Tiếng Việt • Nối từ liên tiếp</div><div class=""game-online""><span class=""online-dot"" style=""background:#44ddff;box-shadow:0 0 6px #44ddff""></span><span id=""online-wordchain"">0</span> người đang chơi</div></a>
 </main>
 <footer style=""text-align:center;padding:26px;color:var(--dim);font-size:.78rem;position:relative;z-index:1;"">Mở nhiều tab để chơi multiplayer • ASP.NET Core SignalR Real-time</footer>
 {SignalRScripts}
@@ -864,14 +884,14 @@ ni.addEventListener('keydown',e=>{{if(e.key==='Enter')document.getElementById('j
 document.getElementById('joinBtn').addEventListener('click',()=>{{const n=ni.value.trim();if(!n){{showToast('Vui lòng nhập nickname!','error');ni.focus();return;}}registerPlayer(n,cp.value);document.getElementById('nickForm').style.display='none';document.getElementById('playerInfo').style.display='flex';}});
 document.getElementById('changeNickBtn').addEventListener('click',()=>{{document.getElementById('playerInfo').style.display='none';document.getElementById('nickForm').style.display='flex';ni.focus();}});
 connection.onreconnected(()=>{{const s=initPlayer();if(s.nickname){{registerPlayer(s.nickname,s.color);document.getElementById('nickForm').style.display='none';document.getElementById('playerInfo').style.display='flex';}}}});
-socket.on('stats:online',counts=>{{document.getElementById('online-tictactoe').textContent=counts.tictactoe||0;document.getElementById('online-snake').textContent=counts.snake||0;document.getElementById('online-pong').textContent=counts.pong||0;document.getElementById('online-chess').textContent=counts.chess||0;document.getElementById('online-mathquiz').textContent=counts.mathquiz||0;const wc=document.getElementById('online-wordchain');if(wc)wc.textContent=counts.wordchain||0;}});
+socket.on('stats:online',counts=>{{document.getElementById('online-tictactoe').textContent=counts.tictactoe||0;document.getElementById('online-snake').textContent=counts.snake||0;document.getElementById('online-pong').textContent=counts.pong||0;document.getElementById('online-chess').textContent=counts.chess||0;document.getElementById('online-mathquiz').textContent=counts.mathquiz||0;}});
 document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=>{{if(!localStorage.getItem('playerNickname')){{e.preventDefault();showToast('Vui lòng nhập nickname trước!','error');ni.focus();}}}}));
 </script></body></html>";
 
-    public static string TicTacToe => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Cờ Caro | GameHub</title><style>{CSS}</style></head><body>
+    public static string TicTacToe => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Tic-Tac-Toe | GameHub</title><style>{CSS}</style></head><body>
 {Header}
-{JoinPanel("⬜", "CỜ CARO", "var(--ac)", "tictactoe", "Bảng 15×15 • Đánh X hoặc O • 5 ô liên tiếp là thắng")}
-{LobbyPanel("⬜", "CỜ CARO", "var(--ac)", 2)}
+{JoinPanel("⭕", "TIC-TAC-TOE", "var(--ac)", "tictactoe", "Click ô trống để đánh • 3 liên tiếp thắng")}
+{LobbyPanel("⭕", "TIC-TAC-TOE", "var(--ac)", 2)}
 <div id=""gameArea"" class=""hidden"">
   <div class=""game-header""><div class=""scoreboard"" id=""scoreboard""></div><div id=""turnIndicator"" class=""turn-indicator""></div></div>
   <div class=""ttt-board"" id=""tttBoard""></div>
@@ -982,447 +1002,278 @@ document.querySelectorAll('.game-card').forEach(c=>c.addEventListener('click',e=
 //  POKER PAGE
 // ══════════════════════════════════════════════════════════════
     private const string PokerJS = @"
-let pokerState=null, myId=null, actionLocked=false;
+let pokerState=null,myId=null;
+socket.on('player:joined',({player})=>{myId=player.id;});
 
-socket.on('player:joined', ({player}) => { myId = player.id; });
-
-socket.on('game:start', ({gameType}) => {
-  if(gameType !== 'poker') return;
-  document.getElementById('lobbyArea')?.classList.add('hidden');
-  document.getElementById('gameArea')?.classList.remove('hidden');
-  document.getElementById('joinArea')?.classList.add('hidden');
+socket.on('game:start',({gameType})=>{
+  if(gameType!=='poker')return;
+  document.getElementById('lobbyArea').classList.add('hidden');
+  document.getElementById('gameArea').classList.remove('hidden');
+  document.getElementById('joinArea').classList.add('hidden');
 });
 
-socket.on('poker:state', gs => {
-  pokerState = gs;
-  actionLocked = false;
+socket.on('poker:state',gs=>{
+  pokerState=gs;
   renderPoker(gs);
 });
 
-const SUIT_COLOR = {'♥':'#ff4d6d','♦':'#ff4d6d','♠':'#c8d8ff','♣':'#7fffcf'};
-const SUIT_GLOW  = {'♥':'#ff4d6d','♦':'#ff4d6d','♠':'#4488ff','♣':'#00cc88'};
-const PHASE_NAMES = {preflop:'PRE-FLOP',flop:'FLOP',turn:'TURN',river:'RIVER',showdown:'SHOWDOWN'};
+function suitColor(s){return(s==='♥'||s==='♦')?'#ff4466':'#eee';}
+function suitBorder(s){return(s==='♥'||s==='♦')?'#ff4466':'#555';}
 
-function makeCard(c) {
-  const d = document.createElement('div');
-  if (!c || c.hidden) {
-    d.className = 'pk-card pk-back';
-    d.innerHTML = '<span style=""font-size:1.8rem;opacity:.25;"">🂠</span>';
-    return d;
-  }
-  d.className = 'pk-card';
-  const col = SUIT_COLOR[c.suit] || '#eee';
-  const glow = SUIT_GLOW[c.suit] || '#aaa';
-  d.style.cssText = 'color:'+col+';border-color:'+col+'50;box-shadow:0 0 14px '+glow+'40;background:linear-gradient(145deg,#1c1c2e,#12121f);';
-  d.innerHTML = '<span style=""font-size:1rem;font-weight:900;line-height:1;"">'+c.rank+'</span><span style=""font-size:1.3rem;line-height:1;"">'+c.suit+'</span>';
-  return d;
-}
-function makePH() {
-  const d = document.createElement('div'); d.className = 'pk-card pk-ph'; return d;
-}
-
-function renderPoker(gs) {
-  if (!gs) return;
-
-  // HUD
-  const potEl = document.getElementById('pkPot'); if(potEl) potEl.textContent = gs.pot.toLocaleString()+' chips';
-  const phEl  = document.getElementById('pkPhase');
-  if(phEl) { phEl.textContent = PHASE_NAMES[gs.phase]||gs.phase; phEl.className='pk-phase '+gs.phase; }
-  const rnEl  = document.getElementById('pkRound'); if(rnEl) rnEl.textContent = 'VÁN '+gs.round;
-  const bbEl  = document.getElementById('pkBlinds'); if(bbEl) bbEl.textContent = 'B:'+gs.bigBlind+'/S:'+gs.smallBlind;
-
-  // Community cards
-  const cc = document.getElementById('pkCommunity');
-  if (cc) {
-    cc.innerHTML = '';
-    (gs.communityCards||[]).forEach(c => { const card=makeCard(c); card.classList.add('pk-flip'); cc.appendChild(card); });
-    for (let i=(gs.communityCards||[]).length; i<5; i++) cc.appendChild(makePH());
-  }
-
-  // Players
-  const area = document.getElementById('pkPlayers');
-  if (area) {
-    area.innerHTML = '';
-    gs.players.forEach((p, i) => {
-      const isMe  = (p.id === myId);
-      const isCur = (i === gs.currentPlayerIndex && !gs.gameOver && !p.folded && !p.allIn);
-      const seat  = document.createElement('div');
-      seat.className = 'pk-seat' + (isMe?' pk-me':'') + (isCur?' pk-active':'') + (p.folded?' pk-folded':'');
-      if (isCur) seat.style.cssText = 'border-color:#ffd700;box-shadow:0 0 30px #ffd70055;';
-      else if (isMe) seat.style.cssText = 'border-color:#ff9944;box-shadow:0 0 20px #ff994425;';
-
-      if (i === gs.dealerIndex) { const db=document.createElement('span'); db.className='pk-dealer'; db.textContent='D'; seat.appendChild(db); }
-      if (isCur) { const tr=document.createElement('div'); tr.className='pk-turn-ring'; seat.appendChild(tr); }
-
-      // Top row: avatar + name + chips
-      const top = document.createElement('div');
-      top.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
-      const av = document.createElement('div'); av.className='pk-avatar';
-      av.style.cssText = 'background:linear-gradient(135deg,'+p.color+'55,'+p.color+'22);border-color:'+p.color+';';
-      av.textContent = p.nickname.charAt(0).toUpperCase();
-      const info = document.createElement('div'); info.style.flex='1;min-width:0;';
-      const nm = document.createElement('div'); nm.className='pk-nm'+(isMe?' pk-nm-me':'');
-      nm.textContent = p.nickname + (isMe?' ★':'');
-      nm.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem;';
-      const ch = document.createElement('div'); ch.className='pk-chips';
-      ch.innerHTML = '🪙 <strong>'+p.chips.toLocaleString()+'</strong>';
-      info.appendChild(nm); info.appendChild(ch);
-      top.appendChild(av); top.appendChild(info); seat.appendChild(top);
-
-      // Cards
-      const hand = document.createElement('div'); hand.className='pk-hand';
-      if (Array.isArray(p.hand) && p.hand.length > 0) {
-        p.hand.forEach(c => hand.appendChild(makeCard(c)));
-      } else { hand.appendChild(makePH()); hand.appendChild(makePH()); }
-      seat.appendChild(hand);
-
-      // Badges
-      const badges = document.createElement('div'); badges.className='pk-badges';
-      if (p.currentBet>0 && !p.folded) { const b=document.createElement('span'); b.className='pk-bet'; b.textContent='🪙 '+p.currentBet.toLocaleString(); badges.appendChild(b); }
-      if (p.folded) { const b=document.createElement('span'); b.className='pk-tag pk-fold-tag'; b.textContent='FOLD'; badges.appendChild(b); }
-      if (p.allIn)  { const b=document.createElement('span'); b.className='pk-tag pk-allin-tag'; b.textContent='ALL-IN'; badges.appendChild(b); }
-      if (isCur)    { const b=document.createElement('span'); b.className='pk-tag pk-cur-tag'; b.textContent='▶ LƯỢT'; badges.appendChild(b); }
-      seat.appendChild(badges);
-      area.appendChild(seat);
+function renderPoker(gs){
+  if(!gs)return;
+  const cc=document.getElementById('community');
+  if(cc){
+    cc.innerHTML='';
+    gs.communityCards.forEach(c=>{
+      const d=document.createElement('div');
+      d.className='pcard';
+      d.style.color=suitColor(c.suit);
+      d.style.borderColor=suitBorder(c.suit);
+      d.textContent=c.rank+c.suit;
+      cc.appendChild(d);
     });
-  }
-
-  // Action log
-  const logEl = document.getElementById('pkLog');
-  if (logEl && gs.actionLog) {
-    logEl.innerHTML = '';
-    [...gs.actionLog].reverse().slice(0,12).forEach(l => {
-      const d=document.createElement('div'); d.className='pk-log'; d.textContent=l; logEl.appendChild(d);
-    });
-  }
-
-  // --- ACTION BUTTONS ---
-  // Find my player object
-  const me = gs.players.find(p => p.id === myId);
-  const curPlayer = gs.players[gs.currentPlayerIndex];
-  const isMyTurn = me && !me.folded && !me.allIn && curPlayer && curPlayer.id === myId && !gs.gameOver;
-
-  console.log('[Poker] myId='+myId+' curId='+(curPlayer&&curPlayer.id)+' isMyTurn='+isMyTurn);
-
-  const ab = document.getElementById('pkActions');
-  if (ab) {
-    ab.style.display = isMyTurn ? 'flex' : 'none';
-  }
-
-  if (isMyTurn && me) {
-    const canCheck = (gs.currentBet <= (me.currentBet||0));
-    const callAmt  = gs.currentBet - (me.currentBet||0);
-
-    const chkBtn = document.getElementById('btnCheck');
-    const callBtn = document.getElementById('btnCall');
-    if (chkBtn)  chkBtn.style.display  = canCheck ? 'flex' : 'none';
-    if (callBtn) {
-      callBtn.style.display = canCheck ? 'none' : 'flex';
-      const sub = callBtn.querySelector('.pk-sub');
-      if (sub) sub.textContent = callAmt + ' chips';
+    for(let i=gs.communityCards.length;i<5;i++){
+      const ph=document.createElement('div');
+      ph.className='pcard-ph';
+      cc.appendChild(ph);
     }
+  }
+  const pt=document.getElementById('potAmt');if(pt)pt.textContent=gs.pot+' chips';
+  const ph=document.getElementById('phaseLabel');
+  const pnames={preflop:'Pre-Flop',flop:'Flop',turn:'Turn',river:'River',showdown:'Showdown'};
+  if(ph)ph.textContent=pnames[gs.phase]||gs.phase;
+  const ri=document.getElementById('roundInfo');if(ri)ri.textContent='Vong '+gs.round;
 
-    const minR = gs.minRaise || gs.bigBlind || 20;
-    const maxR = me.chips;
-    const ri   = document.getElementById('raiseInput');
-    const rs   = document.getElementById('raiseSlider');
-    const rd   = document.getElementById('raiseDisplay');
-    if (ri) { ri.min=minR; ri.max=maxR; ri.value=minR; }
-    if (rs) { rs.min=minR; rs.max=maxR; rs.value=minR; }
-    if (rd) rd.textContent = minR.toLocaleString();
+  const area=document.getElementById('playersArea');
+  if(area){
+    area.innerHTML='';
+    gs.players.forEach((p,i)=>{
+      const isMe=(p.id===myId);
+      const isCur=(i===gs.currentPlayerIndex&&!gs.gameOver&&!p.folded&&!p.allIn);
+      const wrap=document.createElement('div');
+      wrap.style.cssText='border:2px solid '+(isCur?'#ffaa00':isMe?'#ff9944':'#333')+';border-radius:10px;padding:10px 12px;min-width:140px;background:#0e0e1e;position:relative;'+(p.folded?'opacity:.4;':'')+(isCur?'box-shadow:0 0 14px #ffaa0055;':'');
+
+      const nameDiv=document.createElement('div');
+      nameDiv.style.cssText='font-size:.74rem;color:'+p.color+';font-weight:700;margin-bottom:3px;';
+      nameDiv.textContent=p.nickname+(isMe?' (ban)':'');
+      wrap.appendChild(nameDiv);
+
+      const chipsDiv=document.createElement('div');
+      chipsDiv.style.cssText='font-size:.78rem;color:#aaa;margin-bottom:6px;';
+      chipsDiv.textContent='Chips: '+p.chips;
+      wrap.appendChild(chipsDiv);
+
+      const handDiv=document.createElement('div');
+      handDiv.style.cssText='display:flex;gap:4px;margin-bottom:4px;flex-wrap:wrap;';
+      if(Array.isArray(p.hand)){
+        p.hand.forEach(c=>{
+          const cd=document.createElement('div');
+          if(c.hidden){cd.className='pcard-back';cd.textContent='?';}
+          else{
+            cd.className='pcard';
+            cd.style.color=suitColor(c.suit);
+            cd.style.borderColor=suitBorder(c.suit);
+            cd.textContent=c.rank+c.suit;
+          }
+          handDiv.appendChild(cd);
+        });
+      }
+      wrap.appendChild(handDiv);
+
+      if(p.currentBet>0){const b=document.createElement('div');b.style.cssText='font-size:.68rem;color:#ffaa00;';b.textContent='Cuoc: '+p.currentBet;wrap.appendChild(b);}
+      if(p.folded){const b=document.createElement('div');b.style.cssText='color:#ff4466;font-size:.68rem;font-weight:700;';b.textContent='BO BAI';wrap.appendChild(b);}
+      if(p.allIn){const b=document.createElement('div');b.style.cssText='color:#ff9944;font-size:.68rem;font-weight:700;';b.textContent='ALL IN';wrap.appendChild(b);}
+      if(isCur){const tag=document.createElement('div');tag.style.cssText='position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#ffaa00;color:#000;font-size:.62rem;font-weight:800;padding:2px 8px;border-radius:8px;white-space:nowrap;';tag.textContent='LUOT CHOI';wrap.appendChild(tag);}
+      area.appendChild(wrap);
+    });
+  }
+
+  const logEl=document.getElementById('actionLog');
+  if(logEl&&gs.actionLog){
+    logEl.innerHTML='';
+    gs.actionLog.slice(-8).forEach(l=>{const d=document.createElement('div');d.textContent=l;logEl.appendChild(d);});
+    logEl.scrollTop=logEl.scrollHeight;
+  }
+
+  const me=gs.players.find(p=>p.id===myId);
+  const myTurn=(me&&!me.folded&&!me.allIn&&gs.players[gs.currentPlayerIndex]&&gs.players[gs.currentPlayerIndex].id===myId&&!gs.gameOver);
+  const ab=document.getElementById('actionBtns');
+  if(ab)ab.style.display=myTurn?'flex':'none';
+  if(myTurn&&me){
+    const canCheck=(gs.currentBet<=(me.currentBet||0));
+    const chkBtn=document.getElementById('btnCheck');
+    const callBtn=document.getElementById('btnCall');
+    if(chkBtn)chkBtn.style.display=canCheck?'':'none';
+    if(callBtn){callBtn.style.display=canCheck?'none':'';callBtn.textContent='Goi ('+(gs.currentBet-(me.currentBet||0))+')';}
+    const ri2=document.getElementById('raiseInput');
+    if(ri2){ri2.min=gs.minRaise||gs.bigBlind;ri2.value=gs.minRaise||gs.bigBlind;}
   }
 }
 
-function doAction(a, amt) {
-  if (actionLocked) { console.log('[Poker] Locked, ignoring action'); return; }
-  actionLocked = true;
-  console.log('[Poker] Emit action:', a, amt);
-  socket.emit('poker:action', {action: a, amount: parseInt(amt)||0});
-  // Visually disable buttons
-  document.querySelectorAll('.pk-btn').forEach(b => b.style.opacity='0.5');
-  setTimeout(() => {
-    actionLocked = false;
-    document.querySelectorAll('.pk-btn').forEach(b => b.style.opacity='1');
-  }, 2000);
+function doAction(action,amount){
+  socket.emit('poker:action',{action,amount:parseInt(amount)||0});
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('btnFold')?.addEventListener('click',  () => doAction('fold', 0));
-  document.getElementById('btnCheck')?.addEventListener('click', () => doAction('check', 0));
-  document.getElementById('btnCall')?.addEventListener('click',  () => doAction('call', 0));
-  document.getElementById('btnRaise')?.addEventListener('click', () => {
-    const v = document.getElementById('raiseInput')?.value || 20;
-    doAction('raise', parseInt(v)||20);
-  });
-  document.getElementById('btnAllIn')?.addEventListener('click', () => doAction('allin', 0));
-
-  // Slider sync
-  const rs = document.getElementById('raiseSlider');
-  const ri = document.getElementById('raiseInput');
-  const rd = document.getElementById('raiseDisplay');
-  rs?.addEventListener('input', () => { if(ri) ri.value=rs.value; if(rd) rd.textContent=parseInt(rs.value).toLocaleString(); });
-  ri?.addEventListener('input', () => { if(rs) rs.value=ri.value; if(rd) rd.textContent=parseInt(ri.value).toLocaleString(); });
+document.addEventListener('DOMContentLoaded',()=>{
+  const fb=document.getElementById('btnFold');if(fb)fb.onclick=()=>doAction('fold',0);
+  const ck=document.getElementById('btnCheck');if(ck)ck.onclick=()=>doAction('check',0);
+  const cl=document.getElementById('btnCall');if(cl)cl.onclick=()=>doAction('call',0);
+  const rb=document.getElementById('btnRaise');if(rb)rb.onclick=()=>{const v=document.getElementById('raiseInput').value;doAction('raise',parseInt(v)||0);};
+  const ai=document.getElementById('btnAllIn');if(ai)ai.onclick=()=>doAction('allin',0);
 });
 ";
-    public static string Poker => $@"<!DOCTYPE html><html lang=""vi""><head>
-<meta charset=""UTF-8"">
-<meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"">
-<title>Texas Hold'em | GameHub</title>
-<link href=""https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Rajdhani:wght@400;500;600;700&display=swap"" rel=""stylesheet"">
+
+    public static string Poker => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Poker | GameHub</title>
 <style>
 {CSS}
-:root{{--felt:#0a1f0e;--gold:#ffd700;}}
-body{{background:radial-gradient(ellipse at 50% 30%,#0f2d14 0%,#060e08 60%,#030608 100%);font-family:'Rajdhani',sans-serif;}}
-.pk-wrap{{max-width:1100px;margin:0 auto;padding:12px 10px;}}
-.pk-hud{{display:flex;align-items:center;justify-content:space-around;padding:10px 20px;background:rgba(0,0,0,.55);border:1px solid #1a3a1a;border-radius:14px;margin-bottom:14px;flex-wrap:wrap;gap:8px;}}
-.pk-hud-item{{display:flex;flex-direction:column;align-items:center;gap:1px;}}
-.pk-hud-label{{font-size:.58rem;color:#3a6a3a;letter-spacing:.14em;font-family:'Cinzel',serif;}}
-.pk-hud-val{{font-size:1rem;font-weight:700;color:var(--gold);font-family:'Cinzel',serif;text-shadow:0 0 10px #ffd70060;}}
-.pk-phase{{font-size:.85rem;padding:3px 14px;border-radius:20px;font-family:'Cinzel',serif;font-weight:700;}}
-.pk-phase.preflop{{background:#ffd70015;color:#ffd700;border:1px solid #ffd70040;}}
-.pk-phase.flop{{background:#44aaff15;color:#44aaff;border:1px solid #44aaff40;}}
-.pk-phase.turn{{background:#cc88ff15;color:#cc88ff;border:1px solid #cc88ff40;}}
-.pk-phase.river{{background:#ff666615;color:#ff8888;border:1px solid #ff666640;}}
-.pk-phase.showdown{{background:#ff994415;color:#ff9944;border:1px solid #ff994440;box-shadow:0 0 20px #ff994420;}}
-.pk-felt{{background:radial-gradient(ellipse at 50% 40%,#1a4a20 0%,#0f2d14 50%,#091a0c 100%);border:3px solid #2a5a30;border-radius:24px;padding:22px 18px 16px;box-shadow:0 0 60px rgba(0,150,50,.15),inset 0 0 80px rgba(0,0,0,.4);position:relative;margin-bottom:12px;}}
-.pk-community-label{{text-align:center;font-size:.6rem;color:rgba(255,255,255,.22);letter-spacing:.22em;font-family:'Cinzel',serif;margin-bottom:8px;}}
-.pk-community{{display:flex;gap:9px;justify-content:center;align-items:center;margin-bottom:20px;flex-wrap:wrap;}}
-.pk-players{{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}}
-/* CARD */
-.pk-card{{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:52px;height:74px;border-radius:8px;border:1.5px solid #444;font-weight:900;background:linear-gradient(145deg,#1c1c2e,#12121f);gap:1px;transition:transform .15s;}}
-.pk-card.pk-back{{background:repeating-linear-gradient(45deg,#0d1a2a,#0d1a2a 4px,#0a1520 4px,#0a1520 8px);border-color:#1a2a3a;color:#1e3a5a;}}
-.pk-card.pk-ph{{background:transparent;border:2px dashed rgba(255,255,255,.07);box-shadow:none;}}
-.pk-flip{{animation:pkFlip .35s ease both;}}
-@keyframes pkFlip{{from{{transform:rotateY(-90deg);opacity:0;}}to{{transform:rotateY(0deg);opacity:1;}}}}
-/* SEAT */
-.pk-seat{{background:linear-gradient(145deg,rgba(10,22,12,.95),rgba(6,12,8,.98));border:2px solid #1e3a20;border-radius:14px;padding:11px 13px;min-width:150px;max-width:185px;flex:1;position:relative;transition:all .25s;}}
-.pk-seat.pk-me{{border-color:#ff9944;}}
-.pk-seat.pk-active{{animation:seatPulse 1.4s ease infinite;}}
-@keyframes seatPulse{{0%,100%{{box-shadow:0 0 22px #ffd70040;}}50%{{box-shadow:0 0 42px #ffd70075;}}}}
-.pk-seat.pk-folded{{opacity:.3;filter:grayscale(.9);}}
-.pk-dealer{{position:absolute;top:-9px;right:-9px;background:var(--gold);color:#000;font-size:.62rem;font-weight:900;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;box-shadow:0 0 10px #ffd70080;}}
-.pk-turn-ring{{position:absolute;inset:-4px;border-radius:17px;border:2px solid #ffd700;animation:turnRing .9s ease infinite;pointer-events:none;}}
-@keyframes turnRing{{0%,100%{{opacity:1;}}50%{{opacity:.2;}}}}
-.pk-avatar{{width:38px;height:38px;border-radius:50%;border:2px solid #444;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800;font-family:'Cinzel',serif;flex-shrink:0;}}
-.pk-nm{{font-size:.78rem;font-weight:700;color:#b8b8c8;}}
-.pk-nm.pk-nm-me{{color:#ff9944;}}
-.pk-chips{{font-size:.72rem;color:#6a8a6a;margin-top:1px;}}
-.pk-chips strong{{color:#88c888;}}
-.pk-hand{{display:flex;gap:5px;justify-content:center;margin:8px 0 6px;}}
-.pk-badges{{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;min-height:18px;}}
-.pk-bet{{font-size:.68rem;color:var(--gold);background:#ffd70015;border:1px solid #ffd70030;border-radius:9px;padding:1px 7px;}}
-.pk-tag{{font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:9px;letter-spacing:.06em;}}
-.pk-fold-tag{{background:#ff446620;color:#ff4466;border:1px solid #ff446640;}}
-.pk-allin-tag{{background:#ff994420;color:#ff9944;border:1px solid #ff994440;animation:blink .8s steps(1) infinite;}}
-.pk-cur-tag{{background:#ffd70020;color:#ffd700;border:1px solid #ffd70040;}}
-@keyframes blink{{50%{{opacity:.35;}}}}
-/* ACTION ZONE */
-.pk-action-zone{{background:linear-gradient(180deg,rgba(5,15,8,.92),rgba(3,10,5,.96));border:1px solid #1a3a1a;border-radius:16px;padding:16px 18px;}}
-.pk-action-row{{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;align-items:center;}}
-.pk-btn{{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;border-radius:11px;padding:11px 18px;min-width:82px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;transition:all .12s;user-select:none;}}
-.pk-btn:hover{{transform:translateY(-2px);filter:brightness(1.15);}}
-.pk-btn:active{{transform:scale(.95);}}
-.pk-sub{{font-size:.67rem;font-weight:500;opacity:.8;}}
-.pk-btn-fold{{background:linear-gradient(145deg,#3a0a14,#2a0810);border:1.5px solid #ff446650;color:#ff6680;}}
-.pk-btn-check{{background:linear-gradient(145deg,#0a3a1e,#062a14);border:1.5px solid #44dd8850;color:#55ee99;}}
-.pk-btn-call{{background:linear-gradient(145deg,#0a2040,#061428);border:1.5px solid #44aaff50;color:#55bbff;}}
-.pk-btn-raise{{background:linear-gradient(145deg,#2a1a40,#1a0e2a);border:1.5px solid #cc88ff50;color:#dd99ff;}}
-.pk-btn-allin{{background:linear-gradient(145deg,#3a1800,#281000);border:1.5px solid #ff662250;color:#ff9955;}}
-.pk-raise-wrap{{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.3);border:1px solid #1e3a1e;border-radius:11px;padding:9px 13px;flex-wrap:wrap;justify-content:center;width:100%;margin-top:8px;}}
-.pk-raise-val{{font-family:'Cinzel',serif;color:var(--gold);font-weight:700;font-size:1rem;min-width:70px;text-align:center;}}
-input[type=range].pk-slider{{-webkit-appearance:none;height:5px;border-radius:3px;background:linear-gradient(to right,#cc88ff,#ff6622);outline:none;flex:1;min-width:100px;}}
-input[type=range].pk-slider::-webkit-slider-thumb{{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px #ffd70080;cursor:pointer;}}
-input[type=number].pk-num{{background:#0a100a;border:1px solid #2a3a2a;color:#90c890;border-radius:7px;padding:5px 8px;width:72px;font-family:'Rajdhani',sans-serif;font-size:.88rem;text-align:center;}}
-.pk-log-wrap{{margin-top:12px;background:rgba(0,0,0,.4);border:1px solid #0e2010;border-radius:10px;padding:8px 12px;max-height:90px;overflow-y:auto;}}
-.pk-log{{font-size:.72rem;color:#4a6a4a;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03);}}
-.pk-log:first-child{{color:#8aaa8a;font-weight:600;}}
+.pcard{{display:inline-flex;align-items:center;justify-content:center;width:38px;height:52px;border-radius:5px;border:1.5px solid #555;font-size:.82rem;font-weight:700;background:#1a1a2e;user-select:none;}}
+.pcard-back{{display:inline-flex;align-items:center;justify-content:center;width:38px;height:52px;border-radius:5px;border:1.5px solid #444;background:#1a1a3a;color:#666;font-size:1.3rem;}}
+.pcard-ph{{display:inline-flex;width:38px;height:52px;border-radius:5px;border:2px dashed #2a2a3a;background:#0a0a1a;}}
+#actionBtns{{display:none;gap:8px;flex-wrap:wrap;justify-content:center;padding:12px;background:#0e0e1e;border-radius:10px;border:1px solid #2a2a3a;}}
 </style>
 </head><body>
 {Header}
-{JoinPanel("🃏", "TEXAS HOLD'EM", "#ff9944", "poker", "1 vs 4 Bot • 1000 chips • Raise/Call/Fold")}
-{LobbyPanel("🃏", "TEXAS HOLD'EM", "#ff9944", 6)}
+{JoinPanel("🃏", "Texas Hold'em Poker", "#ff9944", "poker", "2 người • 1000 chips mỗi người")}
 <div id=""gameArea"" class=""hidden"">
-  <div class=""pk-wrap"">
-    <div class=""pk-hud"">
-      <div class=""pk-hud-item""><span class=""pk-hud-label"">VÁN</span><span class=""pk-hud-val"" id=""pkRound"">1</span></div>
-      <div class=""pk-hud-item""><span class=""pk-hud-label"">PHASE</span><span id=""pkPhase"" class=""pk-phase preflop"">PRE-FLOP</span></div>
-      <div class=""pk-hud-item""><span class=""pk-hud-label"">POT</span><span class=""pk-hud-val"" id=""pkPot"">0 chips</span></div>
-      <div class=""pk-hud-item""><span class=""pk-hud-label"">BLIND</span><span class=""pk-hud-val"" id=""pkBlinds"">B:20/S:10</span></div>
+  <div style=""max-width:680px;margin:0 auto;padding:14px;"">
+    <div style=""display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"">
+      <span id=""roundInfo"" style=""font-family:var(--fd);color:#ff9944;font-size:.83rem;"">Vong 1</span>
+      <span id=""phaseLabel"" style=""font-family:var(--fd);color:#aaa;font-size:.83rem;"">Pre-Flop</span>
+      <span id=""potAmt"" style=""font-family:var(--fd);color:#ffaa00;font-size:.9rem;font-weight:700;"">0 chips</span>
     </div>
-    <div class=""pk-felt"">
-      <div class=""pk-community-label"">COMMUNITY CARDS</div>
-      <div class=""pk-community"" id=""pkCommunity""></div>
-      <div class=""pk-players"" id=""pkPlayers""></div>
+    <div style=""background:#0a0a1a;border:1px solid #2a2a3a;border-radius:12px;padding:14px;margin-bottom:12px;text-align:center;"">
+      <div style=""font-size:.68rem;color:#555;margin-bottom:8px;letter-spacing:.1em;"">COMMUNITY CARDS</div>
+      <div id=""community"" style=""display:flex;gap:7px;justify-content:center;flex-wrap:wrap;""></div>
     </div>
-    <div class=""pk-action-zone"">
-      <div id=""pkActions"" style=""display:none;flex-direction:column;gap:8px;"">
-        <div class=""pk-action-row"">
-          <button id=""btnFold""  class=""pk-btn pk-btn-fold"" >🗑 BỎ BÀI<span class=""pk-sub"">Fold</span></button>
-          <button id=""btnCheck"" class=""pk-btn pk-btn-check"">✋ CHECK<span class=""pk-sub"">0 chips</span></button>
-          <button id=""btnCall""  class=""pk-btn pk-btn-call"" >📞 GỌI<span class=""pk-sub pk-sub-call"">0 chips</span></button>
-          <button id=""btnRaise"" class=""pk-btn pk-btn-raise"">📈 NÂNG<span class=""pk-sub"">chips</span></button>
-          <button id=""btnAllIn"" class=""pk-btn pk-btn-allin"">🔥 ALL-IN<span class=""pk-sub"">tất cả</span></button>
-        </div>
-        <div class=""pk-raise-wrap"">
-          <span style=""font-size:.7rem;color:#5a7a5a;"">RAISE:</span>
-          <input type=""range""   id=""raiseSlider"" class=""pk-slider"" min=""20"" max=""1000"" value=""20"">
-          <span class=""pk-raise-val"" id=""raiseDisplay"">20</span>
-          <input type=""number"" id=""raiseInput"" class=""pk-num"" min=""20"" step=""10"" value=""20"">
-          <span style=""font-size:.7rem;color:#5a7a5a;"">chips</span>
-        </div>
+    <div id=""playersArea"" style=""display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:12px;""></div>
+    <div id=""actionBtns"">
+      <button id=""btnFold"" class=""btn"" style=""background:#ff446618;border:1px solid #ff4466;color:#ff4466;padding:9px 16px;"">🗑 Bỏ bài</button>
+      <button id=""btnCheck"" class=""btn"" style=""background:#44cc8818;border:1px solid #44cc88;color:#44cc88;padding:9px 16px;"">✋ Check</button>
+      <button id=""btnCall"" class=""btn"" style=""background:#4488ff18;border:1px solid #4488ff;color:#4488ff;padding:9px 16px;"">📞 Gọi</button>
+      <div style=""display:flex;gap:6px;align-items:center;"">
+        <input type=""number"" id=""raiseInput"" class=""input-field"" style=""width:80px;padding:8px;"" min=""20"" step=""10"" value=""20"">
+        <button id=""btnRaise"" class=""btn"" style=""background:#ffaa0018;border:1px solid #ffaa00;color:#ffaa00;padding:9px 14px;"">📈 Nâng</button>
       </div>
-      <div class=""pk-log-wrap"" id=""pkLog""></div>
+      <button id=""btnAllIn"" class=""btn"" style=""background:#ff994418;border:1px solid #ff9944;color:#ff9944;padding:9px 14px;"">🔥 All-In</button>
     </div>
+    <div style=""margin-top:10px;background:#080810;border:1px solid #1a1a2a;border-radius:8px;padding:10px;font-size:.72rem;color:#777;max-height:110px;overflow-y:auto;"" id=""actionLog""></div>
   </div>
 </div>
 {GameOverOverlay}
 {BaseScripts(PokerJS, "poker")}
 </body></html>";
 
-    // ══════════════════════════════════════════
-    //  WORD CHAIN PAGE
-    // ══════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+//  WORD CHAIN PAGE (Nối Từ)
+// ══════════════════════════════════════════════════════════════
     private const string WordChainJS = @"
-const WORD_CHAIN_VERSION = 2;
-let wcState=null;
-function wcInit(gs){ wcState=gs; wcRender(gs); }
-function wcRender(gs){
-  wcState=gs;
-  const pb=document.getElementById('wcPlayers');
-  if(pb)pb.innerHTML=gs.players.map(p=>{
-    const isMe=p.id===window.currentPlayer?.id;
-    const isTurn=p.id===gs.currentTurn;
-    return '<div class=""wc-player'+(p.isEliminated?' eliminated':'')+(isTurn?' active-turn':'')+'"" style=""border-color:'+(isTurn?'var(--ac)':'rgba(255,255,255,.1)')+'"">'+
-      '<div class=""player-avatar"" style=""background:'+(p.color||'#888')+'"">'+p.nickname.charAt(0).toUpperCase()+'</div>'+
-      '<div><div class=""score-name"">'+(isMe?'👤 ':'')+(p.isEliminated?'💀 ':'')+p.nickname+'</div>'+
-      '<div class=""score-value"" style=""color:var(--ac)"">'+p.score+' điểm</div></div>'+
-      (isTurn&&!p.isEliminated?'<span class=""wc-turn-badge"">⏳ Đang đánh</span>':'')+
-      '</div>';
-  }).join('');
-  const cl=document.getElementById('wcLog');
-  if(cl){
-    cl.innerHTML=gs.chatLog.map(l=>{
-      const cls=l.startsWith('✅')?'log-ok':l.startsWith('❌')?'log-err':l.startsWith('💀')?'log-dead':l.startsWith('🏆')?'log-win':l.startsWith('⚡')?'log-warn':'';
-      return '<div class=""wc-log-line '+cls+'"">'+l+'</div>';
-    }).join('');
-    cl.scrollTop=cl.scrollHeight;
-  }
-  const ti=document.getElementById('turnIndicator');
-  if(ti){
-    if(gs.gameOver){ti.innerHTML='🏁 Trò chơi kết thúc!';ti.style.color='var(--ac)';}
-    else if(gs.currentTurn===window.currentPlayer?.id){
-      ti.innerHTML='✍️ Lượt của bạn! Nhập từ bắt đầu bằng: <strong style=""color:var(--ac);font-size:1.3em"">'+gs.lastSyllable+'</strong>';
-      ti.style.color='var(--ac)';
-      document.getElementById('wcInput')?.focus();
-    } else {
-      const cur=gs.players.find(p=>p.id===gs.currentTurn&&!p.isEliminated);
-      const who = cur ? cur.nickname : '?';
-      const isBot = who.includes('Bot') || who.includes('🤖');
-      ti.innerHTML=(isBot?'🤖 ':'⏳ ')+'Lượt của <b>'+who+'</b> — Cần từ bắt đầu: <strong style=""color:var(--ac2)"">'+gs.lastSyllable+'</strong>';
-      ti.style.color='var(--dim)';
-    }
-  }
-  const lw=document.getElementById('wcLastWord');
-  if(lw&&gs.lastWord)lw.innerHTML='Từ vừa đánh: <span style=""color:var(--ac);font-size:1.3em;font-weight:800"">'+gs.lastWord+'</span>';
-  const inp=document.getElementById('wcInput');
-  if(inp&&gs.lastSyllable){
-    inp.placeholder=gs.lastSyllable+' ...';
-    const isMyTurn=gs.currentTurn===window.currentPlayer?.id&&!gs.gameOver;
-    inp.disabled=!isMyTurn;
-    document.getElementById('wcSendBtn').disabled=!isMyTurn;
-  }
-}
-function wcSubmit(){
-  const inp=document.getElementById('wcInput');
-  const word=(inp?.value||'').trim();
-  if(!word){showToast('Hãy nhập một từ!','error');return;}
-  if(wcState&&wcState.currentTurn!==window.currentPlayer?.id){showToast('Chưa đến lượt của bạn!','error');return;}
-  socket.emit('wordchain:submit',{word});
-  if(inp)inp.value='';
-}
-(window._gameStartHandlers=window._gameStartHandlers||[]).push(({gameType,gameState})=>{
-  if(gameType!=='wordchain')return;
+let wcState=null,wcMyId=null,wcInputLocked=false;
+
+socket.on('player:joined',function(d){if(d&&d.player)wcMyId=d.player.id;});
+
+socket.on('game:start',function(d){
+  if(!d||d.gameType!=='wordchain')return;
   document.getElementById('lobbyArea').classList.add('hidden');
   document.getElementById('gameArea').classList.remove('hidden');
-  document.getElementById('joinArea').classList.add('hidden');
-  wcInit(gameState);
-  showToast('Trò chơi bắt đầu! Quy tắc: từ ghép 2+ tiếng, nối tiếng cuối','info');
+  if(!document.getElementById('wcBoard'))initWcBoard();
 });
-socket.on('wordchain:updated',(data)=>{ wcRender(data.gameState||data); });
-socket.on('wordchain:timer',({remaining,currentTurn})=>{
-  const tb=document.getElementById('wcTimer');
-  if(!tb)return;
-  tb.textContent=remaining+'s';
-  tb.style.color=remaining<=5?'var(--ac2)':remaining<=10?'#ffaa00':'var(--ac)';
-  tb.style.transform=remaining<=5?'scale(1.15)':'scale(1)';
+
+function initWcBoard(){
+  var ga=document.getElementById('gameArea');
+  ga.innerHTML='<div style=""max-width:600px;margin:0 auto;padding:14px;""><div id=""wcStatus"" style=""text-align:center;font-family:var(--fd);font-size:1rem;color:var(--ac);margin-bottom:10px;""></div><div id=""wcCurrentWord"" style=""text-align:center;font-size:2.2rem;font-weight:700;font-family:var(--fd);color:#fff;letter-spacing:.06em;margin:10px 0;min-height:3rem;""></div><div id=""wcHint"" style=""text-align:center;font-size:.85rem;color:var(--dim);margin-bottom:14px;""></div><div id=""wcChain"" style=""background:var(--bg2);border:1px solid var(--br);border-radius:10px;padding:12px;max-height:220px;overflow-y:auto;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:6px;""></div><div style=""display:flex;gap:8px;margin-bottom:10px;""><input id=""wcInput"" class=""input-field"" type=""text"" placeholder=""Nhập từ tiếp theo..."" autocomplete=""off"" style=""flex:1;font-size:1rem;""/><button id=""wcSendBtn"" class=""btn btn-primary"" style=""min-width:80px;"">Gửi</button></div><div id=""wcFeedback"" style=""text-align:center;min-height:24px;font-size:.9rem;""></div><div id=""wcScores"" style=""margin-top:12px;""></div><div id=""wcTimer"" style=""text-align:center;font-family:var(--fd);font-size:1.5rem;color:var(--ac3);margin-top:8px;""></div></div>';
+  document.getElementById('wcSendBtn').addEventListener('click',wcSubmit);
+  document.getElementById('wcInput').addEventListener('keydown',function(e){if(e.key==='Enter')wcSubmit();});
+}
+
+function wcSubmit(){
+  if(wcInputLocked)return;
+  var inp=document.getElementById('wcInput');
+  if(!inp)return;
+  var word=inp.value.trim().toLowerCase();
+  if(!word)return;
+  socket.emit('wordchain:submit',{word:word});
+  inp.value='';
+}
+
+socket.on('wordchain:state',function(gs){
+  wcState=gs;
+  wcInputLocked=false;
+  var cw=document.getElementById('wcCurrentWord');
+  var hint=document.getElementById('wcHint');
+  var chain=document.getElementById('wcChain');
+  var status=document.getElementById('wcStatus');
+  if(!cw)return;
+  if(gs.currentWord){
+    cw.textContent=gs.currentWord;
+    var last=gs.currentWord.slice(-1).toUpperCase();
+    hint.textContent='Nhập từ bắt đầu bằng chữ: '+last;
+  } else {
+    cw.textContent='';
+    hint.textContent='Người đầu tiên nhập bất kỳ từ nào!';
+  }
+  if(chain&&gs.chain){
+    chain.innerHTML='';
+    gs.chain.slice(-20).forEach(function(entry){
+      var tag=document.createElement('span');
+      tag.textContent=entry.word;
+      tag.title=entry.player||'';
+      tag.style.cssText='background:var(--bg3,#1a1a2e);border:1px solid var(--br);border-radius:20px;padding:4px 12px;font-size:.85rem;color:var(--ac4);';
+      chain.appendChild(tag);
+    });
+    chain.scrollTop=chain.scrollHeight;
+  }
+  var turn=gs.currentPlayerId;
+  var isMyTurn=turn===wcMyId;
+  status.textContent=isMyTurn?'🟢 Lượt của bạn!':'⏳ Chờ người khác...';
+  status.style.color=isMyTurn?'var(--ac4)':'var(--dim)';
+  var inp=document.getElementById('wcInput');
+  if(inp)inp.disabled=!isMyTurn;
+  var btn=document.getElementById('wcSendBtn');
+  if(btn)btn.disabled=!isMyTurn;
+  wcRenderScores(gs.players);
 });
-socket.on('game:error',(data)=>{ showToast(data.message||'Lỗi','error'); });
-socket.on('game:over',({winnerId,winnerNickname,players,gameState})=>{
-  if(gameState)wcRender(gameState);
-  showGameOver(winnerId,winnerNickname,players);
+
+socket.on('wordchain:timer',function(d){
+  var t=document.getElementById('wcTimer');
+  if(t)t.textContent=d.timeLeft>0?'⏱ '+d.timeLeft+'s':'';
+  if(d.timeLeft<=5&&d.timeLeft>0){if(t)t.style.color='#ff4444';}
+  else{if(t)t.style.color='var(--ac3)';}
 });
-socket.on('game:reset',()=>{
+
+socket.on('wordchain:invalid',function(d){
+  var fb=document.getElementById('wcFeedback');
+  if(fb){fb.textContent='❌ '+(d.reason||'Từ không hợp lệ!');fb.style.color='#ff4444';}
+  wcInputLocked=false;
+});
+
+socket.on('wordchain:accepted',function(d){
+  var fb=document.getElementById('wcFeedback');
+  if(fb){fb.textContent='✅ '+d.word+'!';fb.style.color='var(--ac4)';}
+  setTimeout(function(){if(fb)fb.textContent='';},1500);
+});
+
+function wcRenderScores(players){
+  var el=document.getElementById('wcScores');
+  if(!el||!players)return;
+  el.innerHTML='<div style=""display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"">'+players.map(function(p){
+    return '<div style=""background:var(--bg2);border:1px solid var(--br);border-radius:8px;padding:6px 14px;font-size:.82rem;""><span style=""color:'+p.color+';"">'+p.nickname+'</span><span style=""color:var(--ac4);font-weight:700;margin-left:8px;"">'+p.score+'</span></div>';
+  }).join('')+'</div>';
+}
+
+socket.on('game:over',function(d){showGameOver(d.winnerId,d.winnerNickname,d.players);});
+socket.on('game:reset',function(){
   document.getElementById('gameArea').classList.add('hidden');
   document.getElementById('lobbyArea').classList.remove('hidden');
-  const o=document.getElementById('gameOverOverlay');if(o)o.classList.add('hidden');
-  wcState=null;
+  wcState=null;wcInputLocked=false;
 });
-document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.activeElement?.id==='wcInput')wcSubmit();});";
+";
 
-    private static string WordChainCSS => @"
-.wc-layout{display:grid;grid-template-columns:1fr;gap:12px;max-width:700px;margin:0 auto;padding:10px;}
-.wc-players{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:4px 0;}
-.wc-player{display:flex;align-items:center;gap:8px;background:var(--bg2);border:2px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 12px;transition:all .3s;position:relative;min-width:140px;}
-.wc-player.active-turn{background:rgba(0,255,136,.08);animation:wcGlow .9s ease-in-out infinite alternate;}
-.wc-player.eliminated{opacity:.35;filter:grayscale(1);text-decoration:line-through;}
-.wc-turn-badge{position:absolute;top:-9px;right:6px;background:var(--ac);color:#000;font-size:.6rem;font-weight:800;padding:2px 7px;border-radius:99px;white-space:nowrap;}
-@keyframes wcGlow{from{box-shadow:0 0 4px var(--ac);}to{box-shadow:0 0 20px var(--ac),0 0 4px var(--ac);}}
-.wc-center{text-align:center;padding:8px;}
-.wc-last-word{font-size:.95rem;color:var(--dim);margin-bottom:4px;min-height:24px;}
-#wcTimer{font-size:2.2rem;font-weight:900;display:block;margin:2px 0;transition:transform .2s,color .3s;letter-spacing:1px;}
-.wc-input-row{display:flex;gap:8px;max-width:500px;margin:8px auto 0;}
-.wc-input{flex:1;background:var(--bg2);border:2px solid var(--br);border-radius:8px;color:var(--tx);padding:10px 14px;font-size:1rem;transition:border-color .2s;}
-.wc-input:focus{outline:none;border-color:var(--ac);}
-.wc-input:disabled{opacity:.4;cursor:not-allowed;}
-.wc-btn{background:var(--ac);color:#000;border:none;border-radius:8px;padding:10px 18px;font-weight:800;cursor:pointer;font-size:1rem;transition:opacity .2s;}
-.wc-btn:disabled{opacity:.35;cursor:not-allowed;}
-.wc-log{background:var(--bg2);border-radius:10px;padding:10px 12px;max-height:200px;overflow-y:auto;font-size:.84rem;line-height:1.5;}
-.wc-log-line{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);}
-.wc-log-line.log-ok{color:#88ffbb;}
-.wc-log-line.log-err{color:#ff6677;}
-.wc-log-line.log-dead{color:#ff4444;}
-.wc-log-line.log-win{color:#ffd700;font-weight:700;}
-.wc-log-line.log-warn{color:#ffaa00;}
-.wc-rules{background:var(--bg2);border-radius:10px;padding:12px;font-size:.8rem;color:var(--dim);line-height:1.8;}
-.wc-rules b{color:var(--tx);}";
-
-    public static string WordChainPage => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no""><title>Nối Từ | GameHub</title><style>{CSS}{WordChainCSS}</style></head><body>
+    public static string WordChainPage => $@"<!DOCTYPE html><html lang=""vi""><head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>🔤 Nối Từ</title><style>{CSS}</style></head><body>
 {Header}
-{JoinPanel("🔤", "NỐI TỪ TIẾNG VIỆT", "var(--ac3)", "wordchain", "2–8 người • Tiếng Việt • Nối tiếp liên tục • Hết giờ bị loại")}
-{LobbyPanel("🔤", "NỐI TỪ", "var(--ac3)", 8)}
-<div id=""gameArea"" class=""hidden"">
-  <div class=""game-header""><div class=""scoreboard"" id=""scoreboard"" style=""display:none""></div><div id=""turnIndicator"" class=""turn-indicator""></div></div>
-  <div class=""wc-layout"">
-    <div class=""wc-players"" id=""wcPlayers""></div>
-    <div class=""wc-center"">
-      <div class=""wc-last-word"" id=""wcLastWord"">Chờ trò chơi bắt đầu...</div>
-      <span id=""wcTimer"" style=""color:var(--ac)"">--</span>
-      <div class=""wc-input-row"">
-        <input id=""wcInput"" class=""wc-input"" type=""text"" placeholder=""Nhập từ..."" autocomplete=""off"" autocorrect=""off"" spellcheck=""false"">
-        <button id=""wcSendBtn"" class=""wc-btn"" onclick=""wcSubmit()"">Gửi ↵</button>
-      </div>
-    </div>
-    <div class=""wc-log"" id=""wcLog""></div>
-    <div class=""wc-rules"">
-      <b>📋 Luật chơi:</b><br>
-      • Từ phải bắt đầu bằng <b>tiếng cuối</b> của từ trước đó<br>
-      • Phải là <b>từ ghép hoặc từ láy 2 tiếng</b> trở lên có nghĩa trong tiếng Việt<br>
-      • <b>Không lặp lại</b> từ đã dùng trong ván<br>
-      • Hết giờ → bị loại | Người cuối còn lại thắng<br>
-      • Cứ 10 từ, thời gian giảm 5 giây (tối thiểu 10 giây)
-    </div>
-  </div>
-</div>
+{JoinPanel("🔤", "NỐI TỪ", "var(--ac4)", "wordchain", "Mỗi từ bắt đầu bằng chữ cuối của từ trước • Ai dùng từ đã dùng rồi hoặc hết giờ bị loại")}
+{LobbyPanel("🔤", "NỐI TỪ", "var(--ac4)", 4)}
+<div id=""gameArea"" class=""hidden""></div>
 {GameOverOverlay}
 {BaseScripts(WordChainJS, "wordchain")}
 </body></html>";
